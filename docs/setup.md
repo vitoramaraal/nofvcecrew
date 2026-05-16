@@ -56,12 +56,13 @@ Allowed admin panel roles are:
 - `founder`: full access.
 - `admin`: full operational access.
 - `moderator`: sees applications/members, approves/rejects pending applications,
-  creates regular members, but cannot delete members or change roles.
+  creates regular members, moderates chat/feed and handles event check-in, but
+  cannot delete members, manage events or change roles/status.
 
 7. Login at `/admin` with that Supabase Auth email and password.
 8. To remove old generated test data, run `docs/cleanup-test-data.sql`.
 9. After changing SQL locally, run the full schema again so new tables/functions
-   like chat, feed, events and QR verification exist.
+   like chat, feed, events, audit logs and QR verification exist.
 
 ## Access Flow
 
@@ -124,6 +125,17 @@ open and also keeps a light fallback sync.
 The admin panel includes a `Moderacao` tab for founder/admin/moderator users.
 It lists recent feed posts, feed comments and chat messages. Moderators can
 remove content without receiving member deletion or role-management access.
+
+## Admin Security and Audit
+
+Sensitive admin actions use Supabase RPC functions instead of direct frontend
+table writes. Approval/rejection, member deletion, role/status updates, event
+management, check-in changes and content moderation all validate the current
+admin role inside the database.
+
+Founder/admin users can open the `Auditoria` tab in `/admin` to see recent
+records from `admin_audit_logs`. Moderators can perform their allowed review and
+moderation actions, but they cannot see audit logs.
 
 ## Private Events
 

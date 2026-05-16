@@ -38,6 +38,8 @@ Initial roles:
 - Application form
 - Admin panel
 - Supabase Auth admin access
+- Database-side admin action RPCs
+- Admin audit logs
 - Member approval/rejection
 - Member creation
 - Individual access code

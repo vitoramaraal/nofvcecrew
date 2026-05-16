@@ -2,23 +2,13 @@ import { useCallback, useEffect, useState } from 'react'
 import EventCheckInScanner from '../components/admin/EventCheckInScanner'
 import Background from '../components/Background'
 import MemberCard from '../components/members/MemberCard'
-import { checkInEventMember } from '../lib/events'
+import * as adminActions from '../lib/admin'
 import { getSupabase } from '../lib/supabase'
 
 const adminRoles = ['founder', 'admin', 'moderator', 'member']
 const panelRoles = ['founder', 'admin', 'moderator']
 const managerRoles = ['founder', 'admin']
 const eventStatuses = ['draft', 'open', 'closed', 'completed', 'cancelled']
-
-function createMemberNumber() {
-  return `NFC-${String(Date.now()).slice(-6)}`
-}
-
-function createAccessCode() {
-  const randomValue = crypto.getRandomValues(new Uint32Array(1))[0]
-
-  return `NFV-${randomValue.toString(36).toUpperCase().slice(0, 8)}`
-}
 
 function createWhatsAppUrl(member) {
   const phone = normalizePhone(member.whatsapp)
@@ -60,6 +50,7 @@ function Admin() {
   const [feedPosts, setFeedPosts] = useState([])
   const [feedComments, setFeedComments] = useState([])
   const [chatMessages, setChatMessages] = useState([])
+  const [auditLogs, setAuditLogs] = useState([])
   const [adminRole, setAdminRole] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -88,6 +79,7 @@ function Admin() {
   const canReviewApplications = panelRoles.includes(adminRole)
   const canManageMembers = managerRoles.includes(adminRole)
   const canManageEvents = canManageMembers
+  const canViewAuditLogs = canManageMembers
   const moderationCount =
     feedPosts.length + feedComments.length + chatMessages.length
 
@@ -113,6 +105,7 @@ function Admin() {
         setFeedPosts([])
         setFeedComments([])
         setChatMessages([])
+        setAuditLogs([])
         setAdminRole('')
         setError(
           'Usuario autenticado, mas ainda nao liberado em public.admin_users.',
@@ -242,6 +235,27 @@ function Admin() {
       setFeedPosts(feedPostsData || [])
       setFeedComments(feedCommentsData || [])
       setChatMessages(chatMessagesData || [])
+
+      if (managerRoles.includes(role)) {
+        const { data: auditData, error: auditError } = await client
+          .from('admin_audit_logs')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(80)
+
+        if (auditError) {
+          console.error(auditError)
+          setAuditLogs([])
+          setError(
+            'Dados carregados. Auditoria ainda precisa do schema atualizado.',
+          )
+          return
+        }
+
+        setAuditLogs(auditData || [])
+      } else {
+        setAuditLogs([])
+      }
     } catch (loadError) {
       console.error(loadError)
       setError(
@@ -365,6 +379,7 @@ function Admin() {
       setFeedPosts([])
       setFeedComments([])
       setChatMessages([])
+      setAuditLogs([])
       setAdminRole('')
     } catch (logoutError) {
       console.error(logoutError)
@@ -407,7 +422,6 @@ function Admin() {
     setSuccess('')
 
     try {
-      const client = getSupabase()
       const startsAt = eventForm.starts_at
         ? new Date(eventForm.starts_at).toISOString()
         : null
@@ -415,22 +429,14 @@ function Admin() {
         ? Number(eventForm.capacity)
         : null
 
-      const { error: eventError } = await client.from('crew_events').insert([
-        {
-          title,
-          description: eventForm.description.trim() || null,
-          location: eventForm.location.trim() || null,
-          starts_at: startsAt,
-          status: eventForm.status,
-          capacity,
-          created_by: session?.user?.id || null,
-          updated_at: new Date().toISOString(),
-        },
-      ])
-
-      if (eventError) {
-        throw eventError
-      }
+      await adminActions.createCrewEvent({
+        title,
+        description: eventForm.description.trim() || null,
+        location: eventForm.location.trim() || null,
+        startsAt,
+        status: eventForm.status,
+        capacity,
+      })
 
       setEventForm({
         title: '',
@@ -461,18 +467,7 @@ function Admin() {
     setSuccess('')
 
     try {
-      const client = getSupabase()
-      const { error: updateError } = await client
-        .from('crew_events')
-        .update({
-          status,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', event.id)
-
-      if (updateError) {
-        throw updateError
-      }
+      await adminActions.updateCrewEventStatus(event.id, status)
 
       setSuccess('Status do evento atualizado.')
       await loadData()
@@ -499,15 +494,7 @@ function Admin() {
     setSuccess('')
 
     try {
-      const client = getSupabase()
-      const { error: deleteError } = await client
-        .from('crew_events')
-        .delete()
-        .eq('id', event.id)
-
-      if (deleteError) {
-        throw deleteError
-      }
+      await adminActions.deleteCrewEvent(event.id)
 
       setSuccess('Evento apagado.')
       await loadData()
@@ -530,7 +517,7 @@ function Admin() {
     setSuccess('')
 
     try {
-      await checkInEventMember(event.id, member.id)
+      await adminActions.checkInEventMember(event.id, member.id)
       setSuccess(`Check-in confirmado para ${member.full_name}.`)
       await loadData()
     } catch (checkInError) {
@@ -562,19 +549,7 @@ function Admin() {
     setSuccess('')
 
     try {
-      const client = getSupabase()
-      const { error: updateError } = await client
-        .from('event_rsvps')
-        .update({
-          checked_in_at: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('event_id', event.id)
-        .eq('member_id', member.id)
-
-      if (updateError) {
-        throw updateError
-      }
+      await adminActions.resetEventCheckIn(event.id, member.id)
 
       setSuccess(`Check-in removido para ${member.full_name}.`)
       await loadData()
@@ -608,73 +583,16 @@ function Admin() {
     setError('')
     setSuccess('')
 
-    const client = getSupabase()
-
-    const existingMember = members.find(
-      (member) => member.application_id === application.id,
-    )
-
-    if (existingMember) {
-      const { error: updateError } = await client
-        .from('applications')
-        .update({ status: 'approved' })
-        .eq('id', application.id)
-
-      if (updateError) {
-        console.error(updateError)
-        setError('Erro ao atualizar candidatura.')
-        setLoading(false)
-        return
-      }
-
-      setSuccess('Essa candidatura ja possui membro criado.')
+    try {
+      await adminActions.approveApplication(application.id)
+      setSuccess('Candidatura aprovada e membro criado.')
       await loadData()
+    } catch (approveError) {
+      console.error(approveError)
+      setError(approveError?.message || 'Erro ao aprovar candidatura.')
+    } finally {
       setLoading(false)
-      return
     }
-
-    const memberNumber = createMemberNumber()
-
-    const { error: memberError } = await client.from('members').insert([
-      {
-        application_id: application.id,
-        full_name: application.full_name,
-        instagram: application.instagram,
-        whatsapp: application.whatsapp,
-        car_model: application.car_model,
-        car_setup: application.car_setup,
-        image_url: application.image_url,
-        member_photo_url: application.member_photo_url,
-        member_photo_path: application.member_photo_path,
-        access_code: createAccessCode(),
-        role: 'member',
-        status: 'active',
-        member_number: memberNumber,
-      },
-    ])
-
-    if (memberError) {
-      console.error(memberError)
-      setError('Erro ao criar membro.')
-      setLoading(false)
-      return
-    }
-
-    const { error: updateError } = await client
-      .from('applications')
-      .update({ status: 'approved' })
-      .eq('id', application.id)
-
-    if (updateError) {
-      console.error(updateError)
-      setError('Membro criado, mas erro ao atualizar candidatura.')
-      setLoading(false)
-      return
-    }
-
-    setSuccess('Candidatura aprovada e membro criado.')
-    await loadData()
-    setLoading(false)
   }
 
   async function rejectApplication(application) {
@@ -687,49 +605,16 @@ function Admin() {
     setError('')
     setSuccess('')
 
-    const client = getSupabase()
-
-    const relatedMember = members.find(
-      (member) => member.application_id === application.id,
-    )
-
-    if (relatedMember && !canManageMembers) {
-      setError(
-        'Moderador pode rejeitar candidaturas pendentes, mas nao remover membro ja criado.',
-      )
+    try {
+      await adminActions.rejectApplication(application.id)
+      setSuccess('Candidatura rejeitada.')
+      await loadData()
+    } catch (rejectError) {
+      console.error(rejectError)
+      setError(rejectError?.message || 'Erro ao rejeitar candidatura.')
+    } finally {
       setLoading(false)
-      return
     }
-
-    if (relatedMember) {
-      const { error: memberDeleteError } = await client
-        .from('members')
-        .delete()
-        .eq('id', relatedMember.id)
-
-      if (memberDeleteError) {
-        console.error(memberDeleteError)
-        setError('Erro ao remover membro relacionado.')
-        setLoading(false)
-        return
-      }
-    }
-
-    const { error: updateError } = await client
-      .from('applications')
-      .update({ status: 'rejected' })
-      .eq('id', application.id)
-
-    if (updateError) {
-      console.error(updateError)
-      setError('Erro ao rejeitar candidatura.')
-      setLoading(false)
-      return
-    }
-
-    setSuccess('Candidatura rejeitada e membro relacionado removido.')
-    await loadData()
-    setLoading(false)
   }
 
   async function updateMemberRole(member, role) {
@@ -742,23 +627,38 @@ function Admin() {
     setError('')
     setSuccess('')
 
-    const client = getSupabase()
-
-    const { error: updateError } = await client
-      .from('members')
-      .update({ role })
-      .eq('id', member.id)
-
-    if (updateError) {
+    try {
+      await adminActions.updateMemberRole(member.id, role)
+      setSuccess('Cargo atualizado.')
+      await loadData()
+    } catch (updateError) {
       console.error(updateError)
-      setError('Erro ao atualizar cargo.')
+      setError(updateError?.message || 'Erro ao atualizar cargo.')
+    } finally {
       setLoading(false)
+    }
+  }
+
+  async function updateMemberStatus(member, status) {
+    if (!canManageMembers) {
+      setError('Seu cargo nao permite mudar status de membro.')
       return
     }
 
-    setSuccess('Cargo atualizado.')
-    await loadData()
-    setLoading(false)
+    setLoading(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      await adminActions.updateMemberStatus(member.id, status)
+      setSuccess('Status atualizado.')
+      await loadData()
+    } catch (updateError) {
+      console.error(updateError)
+      setError(updateError?.message || 'Erro ao atualizar status.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function deleteApplication(application) {
@@ -777,41 +677,18 @@ function Admin() {
     setError('')
     setSuccess('')
 
-    const client = getSupabase()
-
-    const relatedMember = members.find(
-      (member) => member.application_id === application.id,
-    )
-
-    if (relatedMember) {
-      const { error: memberDeleteError } = await client
-        .from('members')
-        .delete()
-        .eq('id', relatedMember.id)
-
-      if (memberDeleteError) {
-        console.error(memberDeleteError)
-        setError('Erro ao apagar membro relacionado.')
-        setLoading(false)
-        return
-      }
-    }
-
-    const { error: applicationDeleteError } = await client
-      .from('applications')
-      .delete()
-      .eq('id', application.id)
-
-    if (applicationDeleteError) {
+    try {
+      await adminActions.deleteApplication(application.id)
+      setSuccess('Candidatura apagada com sucesso.')
+      await loadData()
+    } catch (applicationDeleteError) {
       console.error(applicationDeleteError)
-      setError('Erro ao apagar candidatura.')
+      setError(
+        applicationDeleteError?.message || 'Erro ao apagar candidatura.',
+      )
+    } finally {
       setLoading(false)
-      return
     }
-
-    setSuccess('Candidatura apagada com sucesso.')
-    await loadData()
-    setLoading(false)
   }
 
   async function deleteMember(member) {
@@ -830,45 +707,21 @@ function Admin() {
     setError('')
     setSuccess('')
 
-    const client = getSupabase()
+    try {
+      const deletedLinkedApplication = await adminActions.deleteMember(member.id)
 
-    const { error: memberDeleteError } = await client
-      .from('members')
-      .delete()
-      .eq('id', member.id)
-
-    if (memberDeleteError) {
+      setSuccess(
+        deletedLinkedApplication
+          ? 'Membro e candidatura vinculada apagados com sucesso.'
+          : 'Membro apagado com sucesso.',
+      )
+      await loadData()
+    } catch (memberDeleteError) {
       console.error(memberDeleteError)
-      setError('Erro ao apagar membro.')
+      setError(memberDeleteError?.message || 'Erro ao apagar membro.')
+    } finally {
       setLoading(false)
-      return
     }
-
-    let deletedLinkedApplication = false
-
-    if (member.application_id) {
-      const { error: applicationDeleteError } = await client
-        .from('applications')
-        .delete()
-        .eq('id', member.application_id)
-
-      if (applicationDeleteError) {
-        console.error(applicationDeleteError)
-        setError('Membro apagado, mas erro ao apagar candidatura vinculada.')
-        setLoading(false)
-        return
-      }
-
-      deletedLinkedApplication = true
-    }
-
-    setSuccess(
-      deletedLinkedApplication
-        ? 'Membro e candidatura vinculada apagados com sucesso.'
-        : 'Membro apagado com sucesso.',
-    )
-    await loadData()
-    setLoading(false)
   }
 
   async function deleteFeedPost(post) {
@@ -886,15 +739,7 @@ function Admin() {
     setSuccess('')
 
     try {
-      const client = getSupabase()
-      const { error: deleteError } = await client
-        .from('feed_posts')
-        .delete()
-        .eq('id', post.id)
-
-      if (deleteError) {
-        throw deleteError
-      }
+      await adminActions.deleteFeedPost(post.id)
 
       setSuccess('Post apagado do feed.')
       await loadData()
@@ -921,15 +766,7 @@ function Admin() {
     setSuccess('')
 
     try {
-      const client = getSupabase()
-      const { error: deleteError } = await client
-        .from('feed_comments')
-        .delete()
-        .eq('id', comment.id)
-
-      if (deleteError) {
-        throw deleteError
-      }
+      await adminActions.deleteFeedComment(comment.id)
 
       setSuccess('Comentario apagado.')
       await loadData()
@@ -956,15 +793,7 @@ function Admin() {
     setSuccess('')
 
     try {
-      const client = getSupabase()
-      const { error: deleteError } = await client
-        .from('chat_messages')
-        .delete()
-        .eq('id', message.id)
-
-      if (deleteError) {
-        throw deleteError
-      }
+      await adminActions.deleteChatMessage(message.id)
 
       setSuccess('Mensagem apagada do chat.')
       await loadData()
@@ -1165,11 +994,13 @@ function Admin() {
 
         <AdminSectionNav
           active={activeAdminSection}
+          canViewAudit={canViewAuditLogs}
           counts={{
             applications: pending,
             members: members.length,
             events: events.length,
             moderation: moderationCount,
+            audit: auditLogs.length,
           }}
           onChange={setActiveAdminSection}
         />
@@ -1435,6 +1266,10 @@ function Admin() {
           />
         )}
 
+        {activeAdminSection === 'audit' && canViewAuditLogs && (
+          <AuditPanel auditLogs={auditLogs} loading={loading} />
+        )}
+
         {activeAdminSection === 'applications' && (
           <>
             <h2 className="mt-10 text-2xl font-black uppercase">
@@ -1625,20 +1460,34 @@ function Admin() {
 
                       <div className="flex flex-wrap gap-2 lg:justify-end">
                         {canManageMembers && (
-                          <select
-                            value={member.role || 'member'}
-                            onChange={(event) =>
-                              updateMemberRole(member, event.target.value)
-                            }
-                            disabled={loading}
-                            className="rounded-full border border-white/10 bg-black/40 px-3 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-white/45 outline-none disabled:cursor-not-allowed disabled:opacity-30"
-                          >
-                            {adminRoles.map((role) => (
-                              <option key={role} value={role}>
-                                {role}
-                              </option>
-                            ))}
-                          </select>
+                          <>
+                            <select
+                              value={member.role || 'member'}
+                              onChange={(event) =>
+                                updateMemberRole(member, event.target.value)
+                              }
+                              disabled={loading}
+                              className="rounded-full border border-white/10 bg-black/40 px-3 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-white/45 outline-none disabled:cursor-not-allowed disabled:opacity-30"
+                            >
+                              {adminRoles.map((role) => (
+                                <option key={role} value={role}>
+                                  {role}
+                                </option>
+                              ))}
+                            </select>
+
+                            <select
+                              value={member.status || 'active'}
+                              onChange={(event) =>
+                                updateMemberStatus(member, event.target.value)
+                              }
+                              disabled={loading}
+                              className="rounded-full border border-white/10 bg-black/40 px-3 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-white/45 outline-none disabled:cursor-not-allowed disabled:opacity-30"
+                            >
+                              <option value="active">active</option>
+                              <option value="inactive">inactive</option>
+                            </select>
+                          </>
                         )}
 
                         {whatsAppUrl && (
@@ -1798,7 +1647,7 @@ function ApplicationStatusFilter({ active, counts, onChange }) {
   )
 }
 
-function AdminSectionNav({ active, counts, onChange }) {
+function AdminSectionNav({ active, canViewAudit = false, counts, onChange }) {
   const items = [
     {
       id: 'applications',
@@ -1820,10 +1669,23 @@ function AdminSectionNav({ active, counts, onChange }) {
       label: 'Moderacao',
       count: counts.moderation,
     },
+    ...(canViewAudit
+      ? [
+          {
+            id: 'audit',
+            label: 'Auditoria',
+            count: counts.audit,
+          },
+        ]
+      : []),
   ]
 
   return (
-    <nav className="mt-8 grid gap-2 rounded-[2rem] border border-white/5 bg-zinc-900/60 p-2 backdrop-blur-xl md:grid-cols-4">
+    <nav
+      className={`mt-8 grid gap-2 rounded-[2rem] border border-white/5 bg-zinc-900/60 p-2 backdrop-blur-xl ${
+        canViewAudit ? 'md:grid-cols-5' : 'md:grid-cols-4'
+      }`}
+    >
       {items.map((item) => {
         const isActive = active === item.id
 
@@ -1850,6 +1712,50 @@ function AdminSectionNav({ active, counts, onChange }) {
         )
       })}
     </nav>
+  )
+}
+
+function AuditPanel({ auditLogs, loading }) {
+  return (
+    <>
+      <h2 className="mt-10 text-2xl font-black uppercase">Auditoria</h2>
+
+      <div className="mt-6 overflow-hidden rounded-[2rem] border border-white/5 bg-zinc-900/60 backdrop-blur-xl">
+        {auditLogs.length === 0 && !loading && (
+          <div className="p-6 text-sm text-white/40">
+            Nenhum registro de auditoria encontrado.
+          </div>
+        )}
+
+        {auditLogs.map((log) => (
+          <article
+            key={log.id}
+            className="grid gap-4 border-b border-white/5 p-4 last:border-b-0 lg:grid-cols-[1fr_1fr_1.2fr] lg:items-start"
+          >
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-[0.25em] text-red-400">
+                {formatAuditAction(log.action)}
+              </p>
+
+              <h3 className="mt-1 truncate text-sm font-black uppercase">
+                {log.target_type || 'alvo'} / {log.target_id || '-'}
+              </h3>
+            </div>
+
+            <div className="min-w-0 text-sm text-white/45">
+              <p className="truncate">{log.admin_email || 'Admin'}</p>
+              <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-white/30">
+                {log.admin_role || '-'} / {formatAdminEventDate(log.created_at)}
+              </p>
+            </div>
+
+            <pre className="max-h-32 overflow-auto rounded-2xl border border-white/5 bg-black/40 p-3 text-xs leading-5 text-white/40">
+              {formatAuditMetadata(log.metadata)}
+            </pre>
+          </article>
+        ))}
+      </div>
+    </>
   )
 }
 
@@ -2141,6 +2047,18 @@ function createSafeSlug(value) {
     .replace(/^-+|-+$/g, '')
 
   return slug || 'evento'
+}
+
+function formatAuditAction(action) {
+  return String(action || 'acao').replace(/_/g, ' ')
+}
+
+function formatAuditMetadata(metadata) {
+  if (!metadata || Object.keys(metadata).length === 0) {
+    return '{}'
+  }
+
+  return JSON.stringify(metadata, null, 2)
 }
 
 function formatAdminEventDate(value) {

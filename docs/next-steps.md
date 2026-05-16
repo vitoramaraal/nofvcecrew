@@ -27,6 +27,8 @@ MVP foundation completed:
 - Private feed with photos, captions, likes and comments
 - Realtime/fallback sync for private feed
 - Admin moderation for feed posts, feed comments and chat messages
+- Sensitive admin actions through Supabase RPCs with database-side role checks
+- Admin audit logs for approvals, rejection, deletion, role/status changes, events and moderation
 - Event tables with member RSVP and admin check-in
 - Realtime/fallback sync for member events and RSVP status
 - Admin camera/manual scanner for event check-in from member card QR
@@ -43,8 +45,7 @@ MVP foundation completed:
 
 - Add event detail pages with media and participant notes.
 - Surface advanced profile data in garage cards and future profile views.
-- Move admin write actions to Supabase Edge Functions before larger production scale.
-- Add audit logs for admin approval, rejection, role changes and deletion.
+- Review whether admin RPCs should move to Edge Functions only if the app needs a separate backend layer later.
 
 ## Medium Priority
 

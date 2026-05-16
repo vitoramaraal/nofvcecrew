@@ -13,9 +13,9 @@ Field: `role`
 
 | Value | Access |
 | --- | --- |
-| `founder` | Full admin access. Can see all applications, members, phones, access codes and member cards. Can approve/reject applications, delete applications, delete members and change member roles. |
-| `admin` | Full operational admin access. Same operational permissions as founder for the current MVP. |
-| `moderator` | Can see applications and members, including phones, access codes and member cards. Can approve applications, reject pending applications, create regular members through approval, and moderate chat/feed content. Cannot delete members, delete applications or change roles. |
+| `founder` | Full admin access. Can see all applications, members, phones, access codes, member cards and audit logs. Can approve/reject applications, delete applications, delete members, change member roles/status and manage events. |
+| `admin` | Full operational admin access. Same operational permissions as founder for the current MVP, including audit-log visibility. |
+| `moderator` | Can see applications and members, including phones, access codes and member cards. Can approve applications, reject pending applications, create regular members through approval, moderate chat/feed content and handle event check-in. Cannot delete members, delete applications, manage events, see audit logs or change roles/status. |
 
 Important:
 
@@ -108,6 +108,17 @@ Admin-side moderation:
 | Feed comments | Founder, admin and moderator users can see recent comments in `/admin` and delete inappropriate comments. |
 | Chat messages | Founder, admin and moderator users can see recent chat messages in `/admin` and delete inappropriate messages. |
 
+## Admin Audit Logs
+
+Table: `public.admin_audit_logs`
+
+Sensitive admin actions are written through Supabase RPC functions instead of
+direct table writes from the frontend. Those RPCs validate the current admin
+role and write an audit entry with the admin Auth user, role, action, target and
+metadata.
+
+Only `founder` and `admin` users can see the audit tab in `/admin`.
+
 ## Applications
 
 Table: `public.applications`
@@ -141,6 +152,8 @@ Field: `identity_rule_confirmed`
 | Delete application | Yes | Yes | No | No |
 | Delete member | Yes | Yes | No | No |
 | Change member role | Yes | Yes | No | No |
+| Change member status | Yes | Yes | No | No |
+| See admin audit logs | Yes | Yes | No | No |
 | Moderate chat/feed content | Yes | Yes | Yes | No |
 | Create/update/delete events | Yes | Yes | No | No |
 | See event RSVP, export presence and mark/undo check-in | Yes | Yes | Yes | No |
@@ -154,5 +167,6 @@ Field: `identity_rule_confirmed`
 - `public.members.role` controls crew/member identity.
 - A person can be both an admin user and a member, but those are two separate
   records and two separate access models.
-- Admin writes are still client-side in the MVP. Before production scale, move
-  sensitive write actions to Supabase Edge Functions or a server backend.
+- Sensitive admin writes now go through Supabase RPCs with database-side role
+  checks and audit logs. Direct admin table writes are intentionally avoided in
+  the frontend.
