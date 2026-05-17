@@ -3,6 +3,7 @@ import { createQrMatrix } from '../../lib/qr'
 function MemberCard({ member, svgRef }) {
   const memberId = member?.member_number || 'NFC-000000'
   const name = member?.full_name || 'NOFVCE MEMBER'
+  const roleLabel = formatRoleLabel(member?.role)
   const car = member?.car_model || 'CARRO NÃO INFORMADO'
   const memberPhoto = member?.member_photo_url
   const carPhoto = member?.image_url
@@ -112,9 +113,44 @@ function MemberCard({ member, svgRef }) {
             {memberId}
           </text>
 
+          <text
+            x="1120"
+            y="228"
+            fill="#777777"
+            fontSize="20"
+            fontWeight="900"
+            letterSpacing="8"
+          >
+            CARGO
+          </text>
+
+          <rect
+            x="1240"
+            y="202"
+            width="210"
+            height="38"
+            rx="19"
+            fill="white"
+            opacity="0.08"
+            stroke="white"
+            strokeOpacity="0.16"
+          />
+
+          <text
+            x="1345"
+            y="228"
+            textAnchor="middle"
+            fill="#d8d8d8"
+            fontSize="22"
+            fontWeight="900"
+            letterSpacing="4"
+          >
+            {roleLabel}
+          </text>
+
           <rect
             x="85"
-            y="245"
+            y="260"
             width="1430"
             height="2"
             fill="white"
@@ -393,6 +429,17 @@ function limit(text, max) {
   return text.length > max
     ? `${text.slice(0, max - 1)}…`
     : text
+}
+
+function formatRoleLabel(role) {
+  const roleLabels = {
+    founder: 'FUNDADOR',
+    admin: 'ADMIN',
+    moderator: 'MODERADOR',
+    member: 'MEMBRO',
+  }
+
+  return roleLabels[role] || 'MEMBRO'
 }
 
 function getVerificationUrl(member) {
