@@ -294,20 +294,32 @@ function MemberCard({ member, svgRef }) {
 
           <text
             x="1255"
-            y="960"
+            y="945"
             textAnchor="middle"
             fill="#777777"
-            fontSize="28"
+            fontSize="24"
             fontWeight="900"
-            letterSpacing="12"
+            letterSpacing="9"
           >
             @NOFVCECREW
+          </text>
+
+          <text
+            x="1255"
+            y="980"
+            textAnchor="middle"
+            fill="#777777"
+            fontSize="22"
+            fontWeight="900"
+            letterSpacing="8"
+          >
+            PRIVATE ACCESS
           </text>
 
           <rect
             x="85"
             y="880"
-            width="1430"
+            width="950"
             height="2"
             fill="white"
             opacity="0.12"
@@ -331,18 +343,6 @@ function MemberCard({ member, svgRef }) {
             fontWeight="600"
           >
             Membro oficial da NoFvce Crew
-          </text>
-
-          <text
-            x="1510"
-            y="948"
-            textAnchor="end"
-            fill="#777777"
-            fontSize="28"
-            fontWeight="900"
-            letterSpacing="14"
-          >
-            PRIVATE ACCESS
           </text>
 
           <rect
