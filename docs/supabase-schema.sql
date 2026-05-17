@@ -686,7 +686,11 @@ begin
   end loop;
 
   loop
-    next_access_code := 'NFV-' || upper(substr(encode(gen_random_bytes(6), 'hex'), 1, 8));
+    next_access_code := 'NFV-' || upper(substr(
+      md5(random()::text || clock_timestamp()::text || target_application_id::text),
+      1,
+      8
+    ));
 
     exit when not exists (
       select 1
