@@ -71,7 +71,7 @@ Field: `member_number`
 
 | Behavior |
 | --- |
-| Public-facing member ID shown on the digital member card, for example `NFC-123456`. |
+| Public-facing sequential member ID shown on the digital member card, for example `NFC-001`. |
 
 Editable profile fields:
 

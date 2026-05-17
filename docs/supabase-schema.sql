@@ -122,6 +122,40 @@ create index if not exists members_status_created_at_idx
 create index if not exists members_access_code_idx
   on public.members (access_code);
 
+create sequence if not exists public.member_number_seq
+  start with 1
+  increment by 1
+  minvalue 1
+  no maxvalue
+  cache 1;
+
+create or replace function public.create_member_number()
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  candidate_number text;
+begin
+  loop
+    candidate_number := 'NFC-' || lpad(
+      nextval('public.member_number_seq')::text,
+      3,
+      '0'
+    );
+
+    exit when not exists (
+      select 1
+      from public.members
+      where members.member_number = candidate_number
+    );
+  end loop;
+
+  return candidate_number;
+end;
+$$;
+
 create table if not exists public.admin_users (
   id uuid primary key references auth.users(id) on delete cascade,
   email text,
@@ -671,19 +705,7 @@ begin
     return existing_member_id;
   end if;
 
-  loop
-    next_member_number := 'NFC-' || lpad(
-      floor(random() * 1000000)::integer::text,
-      6,
-      '0'
-    );
-
-    exit when not exists (
-      select 1
-      from public.members
-      where members.member_number = next_member_number
-    );
-  end loop;
+  next_member_number := public.create_member_number();
 
   loop
     next_access_code := 'NFV-' || upper(substr(
