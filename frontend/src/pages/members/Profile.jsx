@@ -2,10 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import MobileAppLayout from '../../components/members/MobileAppLayout'
 import PageTransition from '../../components/PageTransition'
 import MemberCard from '../../components/members/MemberCard'
+import ImageCropper from '../../components/ImageCropper'
 import { fetchMemberProfile } from '../../lib/members'
 import {
   updateMemberProfile,
   uploadMemberGalleryImage,
+  uploadMemberVehicleImage,
+  validateProfileImage,
 } from '../../lib/profile'
 import {
   getCurrentMember,
@@ -15,6 +18,7 @@ import {
 import { exportMemberCardAsPng } from '../../utils/exportMemberCard'
 
 const maxGalleryImages = 6
+const vehicleCardPhotoAspect = 420 / 260
 
 function Profile() {
   const [profileMember, setProfileMember] = useState(null)
@@ -22,6 +26,8 @@ function Profile() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploadingGallery, setUploadingGallery] = useState(false)
+  const [uploadingVehicle, setUploadingVehicle] = useState(false)
+  const [vehicleCropFile, setVehicleCropFile] = useState(null)
   const [exporting, setExporting] = useState(false)
   const [profileError, setProfileError] = useState('')
   const [profileSuccess, setProfileSuccess] = useState('')
@@ -29,6 +35,7 @@ function Profile() {
   const cardSvgRef = useRef(null)
 
   const galleryImages = formData.gallery_urls || []
+  const cardMember = profileMember ? { ...profileMember, ...formData } : null
 
   async function handleExportCard() {
     if (exporting) return
@@ -37,7 +44,7 @@ function Profile() {
     setExportError('')
 
     try {
-      const fileName = createCardFileName(profileMember)
+      const fileName = createCardFileName(cardMember)
       await exportMemberCardAsPng(cardSvgRef.current, fileName)
     } catch (error) {
       console.error(error)
@@ -102,6 +109,66 @@ function Profile() {
     }
 
     setUploadingGallery(false)
+  }
+
+  function handleVehicleImageChange(event) {
+    const file = event.target.files[0]
+
+    event.target.value = ''
+
+    if (!file || uploadingVehicle) return
+
+    const imageError = validateProfileImage(file)
+
+    if (imageError) {
+      setProfileError(imageError)
+      setProfileSuccess('')
+      return
+    }
+
+    setProfileError('')
+    setProfileSuccess('')
+    setVehicleCropFile(file)
+  }
+
+  async function handleVehicleCropApply(croppedFile) {
+    const currentMember = getCurrentMember()
+
+    if (!currentMember?.id) {
+      setProfileError('Sessao de membro invalida.')
+      setVehicleCropFile(null)
+      return
+    }
+
+    setUploadingVehicle(true)
+    setProfileError('')
+    setProfileSuccess('')
+
+    try {
+      const imageUrl = await uploadMemberVehicleImage(
+        currentMember.id,
+        croppedFile,
+      )
+
+      setFormData((current) => ({
+        ...current,
+        image_url: imageUrl,
+      }))
+
+      setProfileSuccess('Foto do veiculo ajustada. Salve o perfil para confirmar.')
+      setVehicleCropFile(null)
+    } catch (error) {
+      console.error(error)
+      setProfileError(error?.message || 'Nao foi possivel subir a foto.')
+    }
+
+    setUploadingVehicle(false)
+  }
+
+  function handleVehicleCropCancel() {
+    if (uploadingVehicle) return
+
+    setVehicleCropFile(null)
   }
 
   function removeGalleryImage(imageUrl) {
@@ -237,7 +304,7 @@ function Profile() {
         </section>
 
         <section className="mt-6">
-          <MemberCard member={profileMember} svgRef={cardSvgRef} />
+          <MemberCard member={cardMember} svgRef={cardSvgRef} />
         </section>
 
         <section className="mt-5 rounded-[2rem] border border-white/5 bg-zinc-900/60 p-5 backdrop-blur-xl">
@@ -288,6 +355,49 @@ function Profile() {
             placeholder="Modelo do carro"
             maxLength="80"
           />
+
+          <section className="rounded-[1.5rem] border border-white/5 bg-black/40 p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.3em] text-white/25">
+                  Foto do veiculo
+                </p>
+
+                <p className="mt-2 text-xs text-white/35">
+                  Usada na carteirinha e na garagem
+                </p>
+              </div>
+
+              <label className="rounded-full border border-white/10 bg-white/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.18em] text-white/45">
+                {uploadingVehicle ? 'Subindo...' : 'Trocar'}
+                <input
+                  type="file"
+                  accept="image/png, image/jpeg, image/webp"
+                  onChange={handleVehicleImageChange}
+                  disabled={uploadingVehicle}
+                  className="hidden"
+                />
+              </label>
+            </div>
+
+            <div className="mt-4 overflow-hidden rounded-2xl border border-white/5 bg-black/60">
+              {formData.image_url ? (
+                <img
+                  src={formData.image_url}
+                  alt="Foto do veiculo"
+                  className="w-full object-cover"
+                  style={{ aspectRatio: vehicleCardPhotoAspect }}
+                />
+              ) : (
+                <div
+                  className="flex w-full items-center justify-center text-sm text-white/30"
+                  style={{ aspectRatio: vehicleCardPhotoAspect }}
+                >
+                  Sem foto
+                </div>
+              )}
+            </div>
+          </section>
 
           <ProfileTextarea
             label="Bio"
@@ -389,12 +499,23 @@ function Profile() {
 
           <button
             type="submit"
-            disabled={saving || uploadingGallery}
+            disabled={saving || uploadingGallery || uploadingVehicle}
             className="w-full rounded-full border border-white/10 bg-white/10 px-5 py-4 text-[10px] font-black uppercase tracking-[0.25em] text-white/45 transition hover:border-white/20 hover:bg-white/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
             {saving ? 'Salvando...' : 'Salvar perfil'}
           </button>
         </form>
+
+        {vehicleCropFile && (
+          <ImageCropper
+            file={vehicleCropFile}
+            title="Foto do veiculo"
+            aspectRatio={vehicleCardPhotoAspect}
+            outputWidth={1260}
+            onApply={handleVehicleCropApply}
+            onCancel={handleVehicleCropCancel}
+          />
+        )}
       </PageTransition>
     </MobileAppLayout>
   )
@@ -439,6 +560,7 @@ function createProfileForm(member = {}) {
     car_setup: member.car_setup || '',
     car_specs: member.car_specs || '',
     car_mods: member.car_mods || '',
+    image_url: member.image_url || '',
     gallery_urls: Array.isArray(member.gallery_urls) ? member.gallery_urls : [],
   }
 }

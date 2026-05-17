@@ -68,7 +68,9 @@ Allowed admin panel roles are:
 
 1. Candidate applies at `/apply` without creating an account.
    The form masks Instagram/WhatsApp and requires confirming that the member
-   card photo has no clear face unless blurred, masked or anonymous.
+   card photo has no clear face unless blurred, masked or anonymous. The member
+   photo and vehicle photo are cropped before upload so the candidate can check
+   the card framing.
 2. Admin opens `/admin`, reviews the application and approves it.
 3. Approval creates a member with role `member` and a unique secret code.
 4. Admin sends the generated code through the WhatsApp link shown in the member card.
@@ -77,8 +79,9 @@ Allowed admin panel roles are:
    If the member is deleted or inactive, local access is cleared.
 7. The member card QR opens `/verify/:id` and confirms whether the member is active.
 8. `/members/profile` loads only the current logged-in member profile/card.
-9. The member can edit bio, Instagram, setup, specs, mods and gallery from
-   `/members/profile`.
+9. The member can edit bio, Instagram, setup, specs, mods, main vehicle photo
+   and gallery from `/members/profile`. Vehicle photo changes are cropped and
+   previewed on the digital card before saving.
 10. `/members/feed`, `/members/events`, `/members/chat`, `/members/dashboard`
     and `/members/garage` validate the stored member UUID plus secret code
     before returning private crew content.

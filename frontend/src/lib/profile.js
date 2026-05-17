@@ -24,6 +24,7 @@ export async function updateMemberProfile(memberId, accessCode, profile) {
     profile_car_specs: profile.car_specs || '',
     profile_car_mods: profile.car_mods || '',
     profile_gallery_urls: profile.gallery_urls || [],
+    profile_image_url: profile.image_url || '',
   })
 
   if (error) {
@@ -64,6 +65,37 @@ export async function uploadMemberGalleryImage(memberId, file) {
   const { data } = client.storage.from(galleryBucket).getPublicUrl(filePath)
 
   return data.publicUrl
+}
+
+export async function uploadMemberVehicleImage(memberId, file) {
+  const imageError = validateGalleryImage(file)
+
+  if (imageError) {
+    throw new Error(imageError)
+  }
+
+  const client = getSupabase()
+  const fileName = createGalleryFileName(file)
+  const filePath = `member-vehicles/${memberId}/${fileName}`
+
+  const { error } = await client.storage
+    .from(galleryBucket)
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false,
+    })
+
+  if (error) {
+    throw error
+  }
+
+  const { data } = client.storage.from(galleryBucket).getPublicUrl(filePath)
+
+  return data.publicUrl
+}
+
+export function validateProfileImage(file) {
+  return validateGalleryImage(file)
 }
 
 function validateGalleryImage(file) {

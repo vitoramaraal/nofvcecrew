@@ -83,6 +83,7 @@ Editable profile fields:
 | `car_setup` | Full setup description. |
 | `car_specs` | Technical specs such as year, version, engine, wheels and tires. |
 | `car_mods` | Current modification list. |
+| `image_url` | Main vehicle photo shown in the garage and digital member card. Members can replace it from their profile after cropping the preview. |
 | `gallery_urls` | Up to 6 public image URLs for the member car gallery. |
 | `profile_updated_at` | Last profile edit timestamp. |
 

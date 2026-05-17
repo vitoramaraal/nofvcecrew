@@ -1687,6 +1687,19 @@ drop function if exists public.update_member_profile(
   jsonb
 );
 
+drop function if exists public.update_member_profile(
+  uuid,
+  text,
+  text,
+  text,
+  text,
+  text,
+  text,
+  text,
+  jsonb,
+  text
+);
+
 create or replace function public.update_member_profile(
   active_member_id uuid,
   secret_code text,
@@ -1696,7 +1709,8 @@ create or replace function public.update_member_profile(
   profile_car_setup text,
   profile_car_specs text,
   profile_car_mods text,
-  profile_gallery_urls jsonb
+  profile_gallery_urls jsonb,
+  profile_image_url text default null
 )
 returns table (
   id uuid,
@@ -1723,6 +1737,10 @@ set search_path = public
 as $$
 declare
   normalized_gallery jsonb := coalesce(profile_gallery_urls, '[]'::jsonb);
+  normalized_image_url text := nullif(
+    left(trim(coalesce(profile_image_url, '')), 2048),
+    ''
+  );
 begin
   if jsonb_typeof(normalized_gallery) <> 'array' then
     raise exception 'Gallery must be an array.';
@@ -1741,6 +1759,7 @@ begin
     car_setup = nullif(left(trim(coalesce(profile_car_setup, '')), 700), ''),
     car_specs = nullif(left(trim(coalesce(profile_car_specs, '')), 700), ''),
     car_mods = nullif(left(trim(coalesce(profile_car_mods, '')), 700), ''),
+    image_url = coalesce(normalized_image_url, members.image_url),
     gallery_urls = normalized_gallery,
     profile_updated_at = now()
   where members.id = active_member_id
@@ -1780,7 +1799,8 @@ grant execute on function public.update_member_profile(
   text,
   text,
   text,
-  jsonb
+  jsonb,
+  text
 ) to anon, authenticated;
 
 drop function if exists public.verify_member(uuid);

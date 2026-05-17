@@ -1,10 +1,15 @@
 import { useState } from 'react'
 import Background from '../components/Background'
+import ImageCropper from '../components/ImageCropper'
 import { getSupabase } from '../lib/supabase'
+
+const memberCardPhotoAspect = 330 / 410
+const vehicleCardPhotoAspect = 420 / 260
 
 function Apply() {
   const [carPreview, setCarPreview] = useState(null)
   const [memberPreview, setMemberPreview] = useState(null)
+  const [cropTarget, setCropTarget] = useState(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -53,6 +58,7 @@ function Apply() {
 
   function handleMemberImageChange(event) {
     const file = event.target.files[0]
+    event.target.value = ''
 
     if (!file) {
       setMemberPreview(null)
@@ -72,12 +78,15 @@ function Apply() {
     }
 
     setError('')
-    setMemberFile(file)
-    setMemberPreview(URL.createObjectURL(file))
+    setCropTarget({
+      type: 'member',
+      file,
+    })
   }
 
   function handleCarImageChange(event) {
     const file = event.target.files[0]
+    event.target.value = ''
 
     if (!file) {
       setCarPreview(null)
@@ -97,8 +106,31 @@ function Apply() {
     }
 
     setError('')
-    setCarFile(file)
-    setCarPreview(URL.createObjectURL(file))
+    setCropTarget({
+      type: 'car',
+      file,
+    })
+  }
+
+  function handleCropCancel() {
+    setCropTarget(null)
+  }
+
+  function handleCropApply(croppedFile) {
+    if (!cropTarget) return
+
+    const previewUrl = URL.createObjectURL(croppedFile)
+
+    if (cropTarget.type === 'member') {
+      setMemberFile(croppedFile)
+      setMemberPreview(previewUrl)
+    } else {
+      setCarFile(croppedFile)
+      setCarPreview(previewUrl)
+    }
+
+    setError('')
+    setCropTarget(null)
   }
 
   async function uploadPhoto(file, folder) {
@@ -403,13 +435,17 @@ function Apply() {
 
           <ImageInput
             title="Foto para carteirinha"
-            description="Sem rosto nitido: use blur, mascara ou enquadramento anonimo"
+            description="Escolha a foto e ajuste o corte da carteirinha"
             name="member_photo"
             onChange={handleMemberImageChange}
           />
 
           {memberPreview && !error && (
-            <PreviewImage src={memberPreview} label="Preview da foto do membro" />
+            <PreviewImage
+              src={memberPreview}
+              label="Preview da foto do membro"
+              aspectRatio={memberCardPhotoAspect}
+            />
           )}
 
           <IdentityRuleCheck
@@ -422,13 +458,17 @@ function Apply() {
 
           <ImageInput
             title="Foto do carro"
-            description="Foto do carro - JPG, PNG ou WEBP - maximo 5MB"
+            description="Escolha a foto e ajuste o corte do veiculo"
             name="car_photo"
             onChange={handleCarImageChange}
           />
 
           {carPreview && !error && (
-            <PreviewImage src={carPreview} label="Preview do carro" />
+            <PreviewImage
+              src={carPreview}
+              label="Preview do carro"
+              aspectRatio={vehicleCardPhotoAspect}
+            />
           )}
 
           {error && (
@@ -446,6 +486,25 @@ function Apply() {
           </button>
         </form>
       </section>
+
+      {cropTarget?.file && (
+        <ImageCropper
+          file={cropTarget.file}
+          title={
+            cropTarget.type === 'member'
+              ? 'Foto da carteirinha'
+              : 'Foto do veiculo'
+          }
+          aspectRatio={
+            cropTarget.type === 'member'
+              ? memberCardPhotoAspect
+              : vehicleCardPhotoAspect
+          }
+          outputWidth={cropTarget.type === 'member' ? 990 : 1260}
+          onApply={handleCropApply}
+          onCancel={handleCropCancel}
+        />
+      )}
     </main>
   )
 }
@@ -465,7 +524,6 @@ function ImageInput({ title, description, name, onChange }) {
         name={name}
         type="file"
         accept="image/png, image/jpeg, image/webp"
-        required
         onChange={onChange}
         className="mt-4 w-full text-xs text-white/40 file:mr-4 file:rounded-full file:border-0 file:bg-white/10 file:px-4 file:py-2 file:text-xs file:font-bold file:uppercase file:text-white/60"
       />
@@ -509,10 +567,15 @@ function IdentityRuleCheck({ checked, onChange }) {
   )
 }
 
-function PreviewImage({ src, label }) {
+function PreviewImage({ src, label, aspectRatio }) {
   return (
     <div className="overflow-hidden rounded-[1.5rem] border border-white/5 bg-black/60">
-      <img src={src} alt={label} className="h-56 w-full object-cover" />
+      <img
+        src={src}
+        alt={label}
+        className="w-full object-cover"
+        style={{ aspectRatio }}
+      />
 
       <div className="p-4">
         <p className="text-[10px] uppercase tracking-[0.3em] text-white/30">
