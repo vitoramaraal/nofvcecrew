@@ -394,6 +394,29 @@ insert into storage.buckets (id, name, public)
 values ('application-photos', 'application-photos', true)
 on conflict (id) do update set public = excluded.public;
 
+do $$
+begin
+  if exists (
+    select 1
+    from pg_publication
+    where pubname = 'supabase_realtime'
+  )
+  and not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'applications'
+  ) then
+    alter publication supabase_realtime add table public.applications;
+  end if;
+exception
+  when duplicate_object then
+    null;
+  when undefined_object then
+    null;
+end $$;
+
 alter table public.applications enable row level security;
 alter table public.members enable row level security;
 alter table public.admin_users enable row level security;

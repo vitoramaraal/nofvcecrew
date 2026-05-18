@@ -140,6 +140,17 @@ Founder/admin users can open the `Auditoria` tab in `/admin` to see recent
 records from `admin_audit_logs`. Moderators can perform their allowed review and
 moderation actions, but they cannot see audit logs.
 
+## Admin Notifications
+
+The admin panel listens for new rows in `public.applications` through Supabase
+Realtime. While `/admin` is open, founder/admin/moderator users see an in-panel
+alert when a new application arrives.
+
+Admins can click `Avisos` in the admin header to enable native browser
+notifications for that browser. Browser notifications only fire while the admin
+panel is open. For alerts when nobody has the panel open, use a future email,
+Web Push or Supabase Edge Function flow.
+
 ## Private Events
 
 The `/members/events` route lists active crew events from `crew_events`.

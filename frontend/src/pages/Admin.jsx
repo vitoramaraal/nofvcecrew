@@ -55,6 +55,11 @@ function Admin() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [applicationAlert, setApplicationAlert] = useState(null)
+  const [notificationPermission, setNotificationPermission] = useState(
+    getNotificationPermission(),
+  )
+  const [realtimeStatus, setRealtimeStatus] = useState('idle')
   const [activeAdminSection, setActiveAdminSection] = useState('applications')
   const [applicationStatusFilter, setApplicationStatusFilter] =
     useState('pending')
@@ -83,6 +88,40 @@ function Admin() {
   const moderationCount =
     feedPosts.length + feedComments.length + chatMessages.length
 
+  const notifyNewApplication = useCallback(
+    (application) => {
+      const applicantName = application?.full_name || 'Novo candidato'
+      const carModel = application?.car_model || 'Carro nao informado'
+
+      setApplicationAlert({
+        id: application?.id || `${Date.now()}`,
+        fullName: applicantName,
+        carModel,
+      })
+
+      if (
+        notificationPermission === 'granted' &&
+        typeof window !== 'undefined' &&
+        'Notification' in window
+      ) {
+        const browserNotification = new window.Notification(
+          'Nova candidatura',
+          {
+            body: `${applicantName} - ${carModel}`,
+            tag: `application-${application?.id || Date.now()}`,
+          },
+        )
+
+        browserNotification.onclick = () => {
+          window.focus()
+          setActiveAdminSection('applications')
+          setApplicationStatusFilter('pending')
+        }
+      }
+    },
+    [notificationPermission],
+  )
+
   const loadData = useCallback(async () => {
     setLoading(true)
     setError('')
@@ -107,6 +146,7 @@ function Admin() {
         setChatMessages([])
         setAuditLogs([])
         setAdminRole('')
+        setRealtimeStatus('idle')
         setError(
           'Usuario autenticado, mas ainda nao liberado em public.admin_users.',
         )
@@ -309,6 +349,44 @@ function Admin() {
     }
   }, [loadData])
 
+  useEffect(() => {
+    if (!isUnlocked || !canReviewApplications) {
+      return undefined
+    }
+
+    const client = getSupabase()
+    const channel = client
+      .channel('admin-application-notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'applications',
+        },
+        (payload) => {
+          const newApplication = payload.new
+
+          setApplications((current) => {
+            if (current.some((item) => item.id === newApplication.id)) {
+              return current
+            }
+
+            return [newApplication, ...current]
+          })
+
+          notifyNewApplication(newApplication)
+        },
+      )
+      .subscribe((status) => {
+        setRealtimeStatus(status === 'SUBSCRIBED' ? 'connected' : 'connecting')
+      })
+
+    return () => {
+      client.removeChannel(channel)
+    }
+  }, [canReviewApplications, isUnlocked, notifyNewApplication])
+
   function handleCredentialChange(event) {
     const { name, value } = event.target
 
@@ -381,11 +459,43 @@ function Admin() {
       setChatMessages([])
       setAuditLogs([])
       setAdminRole('')
+      setApplicationAlert(null)
+      setRealtimeStatus('idle')
     } catch (logoutError) {
       console.error(logoutError)
       setError('Nao foi possivel sair da sessao admin.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function requestAdminNotifications() {
+    if (notificationPermission === 'unsupported') {
+      setError('Este navegador nao suporta notificacoes.')
+      return
+    }
+
+    if (notificationPermission === 'denied') {
+      setError(
+        'As notificacoes estao bloqueadas no navegador. Libere nas configuracoes do site.',
+      )
+      return
+    }
+
+    if (notificationPermission === 'granted') {
+      setSuccess('Notificacoes de candidaturas ja estao ativas.')
+      return
+    }
+
+    const nextPermission = await window.Notification.requestPermission()
+
+    setNotificationPermission(nextPermission)
+
+    if (nextPermission === 'granted') {
+      setSuccess('Notificacoes de novas candidaturas ativadas neste navegador.')
+      setError('')
+    } else {
+      setError('Notificacoes nao foram ativadas neste navegador.')
     }
   }
 
@@ -906,6 +1016,17 @@ function Admin() {
             {session?.user?.email || 'Admin'} / {adminRole || 'sem cargo'}
           </span>
 
+          {canReviewApplications && (
+            <button
+              type="button"
+              onClick={requestAdminNotifications}
+              className="text-[10px] uppercase tracking-[0.35em] text-white/35 transition hover:text-white disabled:opacity-40"
+              disabled={notificationPermission === 'unsupported'}
+            >
+              {getNotificationButtonLabel(notificationPermission)}
+            </button>
+          )}
+
           <button
             type="button"
             onClick={loadData}
@@ -934,6 +1055,12 @@ function Admin() {
         <h1 className="mt-4 text-5xl font-black uppercase leading-none">
           Applications
         </h1>
+
+        {canReviewApplications && (
+          <p className="mt-4 text-[10px] uppercase tracking-[0.3em] text-white/25">
+            Avisos {realtimeStatus === 'connected' ? 'online' : 'em espera'}
+          </p>
+        )}
 
         <div className="mt-8 grid gap-4 md:grid-cols-4">
           <StatCard
@@ -979,6 +1106,44 @@ function Admin() {
             onClick={() => setActiveAdminSection('members')}
           />
         </div>
+
+        {applicationAlert && (
+          <div className="mt-6 rounded-[1.5rem] border border-sky-400/20 bg-sky-400/10 px-5 py-5">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.28em] text-sky-200">
+                  Nova candidatura
+                </p>
+
+                <p className="mt-2 text-sm text-sky-50/70">
+                  {applicationAlert.fullName} - {applicationAlert.carModel}
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveAdminSection('applications')
+                    setApplicationStatusFilter('pending')
+                    setApplicationAlert(null)
+                  }}
+                  className="rounded-full border border-white/10 bg-white/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.22em] text-white/60 transition hover:border-white/20 hover:text-white"
+                >
+                  Ver
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setApplicationAlert(null)}
+                  className="rounded-full border border-white/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.22em] text-white/35 transition hover:border-white/20 hover:text-white"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {success && (
           <div className="mt-6 rounded-[1.5rem] border border-emerald-500/20 bg-emerald-500/10 px-5 py-5 text-sm text-emerald-300">
@@ -2071,6 +2236,25 @@ function formatAdminEventDate(value) {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+function getNotificationPermission() {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return 'unsupported'
+  }
+
+  return window.Notification.permission
+}
+
+function getNotificationButtonLabel(permission) {
+  const labels = {
+    granted: 'Avisos on',
+    denied: 'Avisos off',
+    default: 'Avisos',
+    unsupported: 'Sem avisos',
+  }
+
+  return labels[permission] || 'Avisos'
 }
 
 export default Admin
