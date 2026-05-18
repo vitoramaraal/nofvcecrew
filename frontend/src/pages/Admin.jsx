@@ -3,6 +3,12 @@ import EventCheckInScanner from '../components/admin/EventCheckInScanner'
 import Background from '../components/Background'
 import MemberCard from '../components/members/MemberCard'
 import * as adminActions from '../lib/admin'
+import {
+  enableAdminPushNotifications,
+  getAdminPushPermission,
+  isAdminPushConfigured,
+  isAdminPushSupported,
+} from '../lib/adminPush'
 import { getSupabase } from '../lib/supabase'
 
 const adminRoles = ['founder', 'admin', 'moderator', 'member']
@@ -57,7 +63,7 @@ function Admin() {
   const [success, setSuccess] = useState('')
   const [applicationAlert, setApplicationAlert] = useState(null)
   const [notificationPermission, setNotificationPermission] = useState(
-    getNotificationPermission(),
+    getAdminPushPermission(),
   )
   const [realtimeStatus, setRealtimeStatus] = useState('idle')
   const [activeAdminSection, setActiveAdminSection] = useState('applications')
@@ -101,6 +107,7 @@ function Admin() {
 
       if (
         notificationPermission === 'granted' &&
+        !isAdminPushConfigured() &&
         typeof window !== 'undefined' &&
         'Notification' in window
       ) {
@@ -470,8 +477,18 @@ function Admin() {
   }
 
   async function requestAdminNotifications() {
-    if (notificationPermission === 'unsupported') {
-      setError('Este navegador nao suporta notificacoes.')
+    if (!isAdminPushSupported()) {
+      setNotificationPermission('unsupported')
+      setError('Este navegador nao suporta Web Push.')
+      setSuccess('')
+      return
+    }
+
+    if (!isAdminPushConfigured()) {
+      setError(
+        'Configure VITE_ADMIN_PUSH_VAPID_PUBLIC_KEY para ativar Web Push.',
+      )
+      setSuccess('')
       return
     }
 
@@ -479,23 +496,27 @@ function Admin() {
       setError(
         'As notificacoes estao bloqueadas no navegador. Libere nas configuracoes do site.',
       )
+      setSuccess('')
       return
     }
 
-    if (notificationPermission === 'granted') {
-      setSuccess('Notificacoes de candidaturas ja estao ativas.')
-      return
-    }
+    try {
+      const { permission } = await enableAdminPushNotifications()
 
-    const nextPermission = await window.Notification.requestPermission()
+      setNotificationPermission(permission)
 
-    setNotificationPermission(nextPermission)
-
-    if (nextPermission === 'granted') {
-      setSuccess('Notificacoes de novas candidaturas ativadas neste navegador.')
-      setError('')
-    } else {
-      setError('Notificacoes nao foram ativadas neste navegador.')
+      if (permission === 'granted') {
+        setSuccess('Web Push de candidaturas ativado neste navegador.')
+        setError('')
+      } else {
+        setError('Web Push nao foi ativado neste navegador.')
+        setSuccess('')
+      }
+    } catch (pushError) {
+      console.error(pushError)
+      setNotificationPermission(getAdminPushPermission())
+      setError(pushError?.message || 'Nao foi possivel ativar Web Push.')
+      setSuccess('')
     }
   }
 
@@ -1058,7 +1079,8 @@ function Admin() {
 
         {canReviewApplications && (
           <p className="mt-4 text-[10px] uppercase tracking-[0.3em] text-white/25">
-            Avisos {realtimeStatus === 'connected' ? 'online' : 'em espera'}
+            Realtime {realtimeStatus === 'connected' ? 'online' : 'em espera'}{' '}
+            / push {notificationPermission === 'granted' ? 'ativo' : 'off'}
           </p>
         )}
 
@@ -2238,23 +2260,15 @@ function formatAdminEventDate(value) {
   })
 }
 
-function getNotificationPermission() {
-  if (typeof window === 'undefined' || !('Notification' in window)) {
-    return 'unsupported'
-  }
-
-  return window.Notification.permission
-}
-
 function getNotificationButtonLabel(permission) {
   const labels = {
-    granted: 'Avisos on',
-    denied: 'Avisos off',
-    default: 'Avisos',
-    unsupported: 'Sem avisos',
+    granted: 'Push on',
+    denied: 'Push off',
+    default: 'Push',
+    unsupported: 'Sem push',
   }
 
-  return labels[permission] || 'Avisos'
+  return labels[permission] || 'Push'
 }
 
 export default Admin
