@@ -21,7 +21,6 @@ Create `frontend/.env` from `frontend/.env.example`:
 ```env
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
-VITE_ADMIN_PUSH_VAPID_PUBLIC_KEY=
 ```
 
 The admin screen at `/admin` uses Supabase Auth now. Member access is not a
@@ -147,51 +146,38 @@ The admin panel listens for new rows in `public.applications` through Supabase
 Realtime. While `/admin` is open, founder/admin/moderator users see an in-panel
 alert when a new application arrives.
 
-Admins can click `Push` in the admin header to enable Web Push for that browser.
-After it is enabled, new applications can notify founder/admin/moderator users
-even when `/admin` is closed, as long as the browser/OS allows notifications for
-the site.
+For notifications when nobody has `/admin` open, use the email Edge Function.
+It sends a new-application email to founder/admin/moderator addresses from
+`public.admin_users.email`. You can override recipients with `ADMIN_EMAIL_TO`
+if needed.
 
-Web Push setup:
+Email setup:
 
-1. Generate VAPID keys:
-
-```bash
-npx web-push generate-vapid-keys
-```
-
-2. Put the public key in the frontend environment:
-
-```env
-VITE_ADMIN_PUSH_VAPID_PUBLIC_KEY=your_public_vapid_key
-```
-
-3. Deploy the Supabase Edge Function without JWT verification for this webhook
-   endpoint, and keep `ADMIN_PUSH_FUNCTION_SECRET` strong and private.
+1. Create and verify a sender in Resend.
+2. Deploy the Supabase Edge Function without JWT verification for this webhook
+   endpoint, and keep `ADMIN_EMAIL_FUNCTION_SECRET` strong and private.
 
 ```bash
-supabase functions deploy send-admin-push --no-verify-jwt
-supabase secrets set VAPID_PUBLIC_KEY=your_public_vapid_key
-supabase secrets set VAPID_PRIVATE_KEY=your_private_vapid_key
-supabase secrets set VAPID_SUBJECT=mailto:you@example.com
-supabase secrets set ADMIN_PUSH_FUNCTION_SECRET=your_random_webhook_secret
+supabase functions deploy send-admin-application-email --no-verify-jwt
+supabase secrets set RESEND_API_KEY=your_resend_api_key
+supabase secrets set ADMIN_EMAIL_FROM="NoFvce Crew <avisos@your-domain.com>"
+supabase secrets set ADMIN_EMAIL_FUNCTION_SECRET=your_random_webhook_secret
+supabase secrets set ADMIN_APP_URL=https://your-site.com
 ```
 
 The function uses Supabase's default `SUPABASE_URL` and `SUPABASE_SECRET_KEYS`.
 If your project is still on legacy API keys and does not expose
-`SUPABASE_SECRET_KEYS`, also set `SUPABASE_SERVICE_ROLE_KEY`.
+`SUPABASE_SECRET_KEYS`, also set `SUPABASE_SERVICE_ROLE_KEY`. If you prefer a
+fixed recipient list instead of `public.admin_users.email`, set
+`ADMIN_EMAIL_TO=founder@example.com,admin@example.com`.
 
-4. Run the full `docs/supabase-schema.sql` again. It creates
-   `admin_push_subscriptions`, `admin_push_events`, the admin-only subscription
-   RPC and the trigger that queues a push event for every new application.
-5. In Supabase Dashboard, create a Database Webhook for
-   `public.admin_push_events` on `INSERT`:
+3. Run the full `docs/supabase-schema.sql` again.
+4. In Supabase Dashboard, create a Database Webhook for `public.applications` on
+   `INSERT`:
    - Method: `POST`
-   - URL: `https://<project-ref>.supabase.co/functions/v1/send-admin-push`
+   - URL: `https://<project-ref>.supabase.co/functions/v1/send-admin-application-email`
    - Header: `Content-Type: application/json`
-   - Header: `x-admin-push-secret: your_random_webhook_secret`
-6. Open `/admin` in production HTTPS, log in as founder/admin/moderator and click
-   `Push` once per browser/device that should receive alerts.
+   - Header: `x-admin-email-secret: your_random_webhook_secret`
 
 ## Private Events
 

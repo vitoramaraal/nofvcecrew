@@ -3,12 +3,6 @@ import EventCheckInScanner from '../components/admin/EventCheckInScanner'
 import Background from '../components/Background'
 import MemberCard from '../components/members/MemberCard'
 import * as adminActions from '../lib/admin'
-import {
-  enableAdminPushNotifications,
-  getAdminPushPermission,
-  isAdminPushConfigured,
-  isAdminPushSupported,
-} from '../lib/adminPush'
 import { getSupabase } from '../lib/supabase'
 
 const adminRoles = ['founder', 'admin', 'moderator', 'member']
@@ -62,9 +56,6 @@ function Admin() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [applicationAlert, setApplicationAlert] = useState(null)
-  const [notificationPermission, setNotificationPermission] = useState(
-    getAdminPushPermission(),
-  )
   const [realtimeStatus, setRealtimeStatus] = useState('idle')
   const [activeAdminSection, setActiveAdminSection] = useState('applications')
   const [applicationStatusFilter, setApplicationStatusFilter] =
@@ -104,29 +95,8 @@ function Admin() {
         fullName: applicantName,
         carModel,
       })
-
-      if (
-        notificationPermission === 'granted' &&
-        !isAdminPushConfigured() &&
-        typeof window !== 'undefined' &&
-        'Notification' in window
-      ) {
-        const browserNotification = new window.Notification(
-          'Nova candidatura',
-          {
-            body: `${applicantName} - ${carModel}`,
-            tag: `application-${application?.id || Date.now()}`,
-          },
-        )
-
-        browserNotification.onclick = () => {
-          window.focus()
-          setActiveAdminSection('applications')
-          setApplicationStatusFilter('pending')
-        }
-      }
     },
-    [notificationPermission],
+    [],
   )
 
   const loadData = useCallback(async () => {
@@ -473,50 +443,6 @@ function Admin() {
       setError('Nao foi possivel sair da sessao admin.')
     } finally {
       setLoading(false)
-    }
-  }
-
-  async function requestAdminNotifications() {
-    if (!isAdminPushSupported()) {
-      setNotificationPermission('unsupported')
-      setError('Este navegador nao suporta Web Push.')
-      setSuccess('')
-      return
-    }
-
-    if (!isAdminPushConfigured()) {
-      setError(
-        'Configure VITE_ADMIN_PUSH_VAPID_PUBLIC_KEY para ativar Web Push.',
-      )
-      setSuccess('')
-      return
-    }
-
-    if (notificationPermission === 'denied') {
-      setError(
-        'As notificacoes estao bloqueadas no navegador. Libere nas configuracoes do site.',
-      )
-      setSuccess('')
-      return
-    }
-
-    try {
-      const { permission } = await enableAdminPushNotifications()
-
-      setNotificationPermission(permission)
-
-      if (permission === 'granted') {
-        setSuccess('Web Push de candidaturas ativado neste navegador.')
-        setError('')
-      } else {
-        setError('Web Push nao foi ativado neste navegador.')
-        setSuccess('')
-      }
-    } catch (pushError) {
-      console.error(pushError)
-      setNotificationPermission(getAdminPushPermission())
-      setError(pushError?.message || 'Nao foi possivel ativar Web Push.')
-      setSuccess('')
     }
   }
 
@@ -1037,17 +963,6 @@ function Admin() {
             {session?.user?.email || 'Admin'} / {adminRole || 'sem cargo'}
           </span>
 
-          {canReviewApplications && (
-            <button
-              type="button"
-              onClick={requestAdminNotifications}
-              className="text-[10px] uppercase tracking-[0.35em] text-white/35 transition hover:text-white disabled:opacity-40"
-              disabled={notificationPermission === 'unsupported'}
-            >
-              {getNotificationButtonLabel(notificationPermission)}
-            </button>
-          )}
-
           <button
             type="button"
             onClick={loadData}
@@ -1080,7 +995,7 @@ function Admin() {
         {canReviewApplications && (
           <p className="mt-4 text-[10px] uppercase tracking-[0.3em] text-white/25">
             Realtime {realtimeStatus === 'connected' ? 'online' : 'em espera'}{' '}
-            / push {notificationPermission === 'granted' ? 'ativo' : 'off'}
+            / email via webhook
           </p>
         )}
 
@@ -2258,17 +2173,6 @@ function formatAdminEventDate(value) {
     hour: '2-digit',
     minute: '2-digit',
   })
-}
-
-function getNotificationButtonLabel(permission) {
-  const labels = {
-    granted: 'Push on',
-    denied: 'Push off',
-    default: 'Push',
-    unsupported: 'Sem push',
-  }
-
-  return labels[permission] || 'Push'
 }
 
 export default Admin

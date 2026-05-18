@@ -390,44 +390,17 @@ create index if not exists event_rsvps_member_id_idx
 create index if not exists event_rsvps_event_status_idx
   on public.event_rsvps (event_id, status);
 
-create table if not exists public.admin_push_subscriptions (
-  id uuid primary key default gen_random_uuid(),
-  admin_user_id uuid references auth.users(id) on delete cascade,
-  endpoint text unique not null,
-  p256dh text not null,
-  auth text not null,
-  user_agent text,
-  status text not null default 'active'
-    check (status in ('active', 'inactive')),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  last_seen_at timestamptz not null default now()
-);
-
-create index if not exists admin_push_subscriptions_admin_user_status_idx
-  on public.admin_push_subscriptions (admin_user_id, status);
-
-create index if not exists admin_push_subscriptions_endpoint_idx
-  on public.admin_push_subscriptions (endpoint);
-
-create table if not exists public.admin_push_events (
-  id uuid primary key default gen_random_uuid(),
-  application_id uuid references public.applications(id) on delete cascade,
-  full_name text not null,
-  car_model text,
-  processed_at timestamptz,
-  created_at timestamptz not null default now()
-);
-
-create index if not exists admin_push_events_created_at_idx
-  on public.admin_push_events (created_at desc);
-
-create index if not exists admin_push_events_processed_at_idx
-  on public.admin_push_events (processed_at);
-
 insert into storage.buckets (id, name, public)
 values ('application-photos', 'application-photos', true)
 on conflict (id) do update set public = excluded.public;
+
+-- Remove the old Web Push prototype trigger/functions if that schema was run.
+drop trigger if exists applications_admin_push_event_trigger
+  on public.applications;
+
+drop function if exists public.queue_admin_application_push();
+drop function if exists public.upsert_admin_push_subscription(jsonb, text);
+drop function if exists public.delete_admin_push_subscription(text);
 
 do $$
 begin
@@ -456,8 +429,6 @@ alter table public.applications enable row level security;
 alter table public.members enable row level security;
 alter table public.admin_users enable row level security;
 alter table public.admin_audit_logs enable row level security;
-alter table public.admin_push_subscriptions enable row level security;
-alter table public.admin_push_events enable row level security;
 alter table public.chat_messages enable row level security;
 alter table public.feed_posts enable row level security;
 alter table public.feed_likes enable row level security;
@@ -478,16 +449,6 @@ create policy "Managers can read admin audit logs"
   for select
   to authenticated
   using (public.can_manage_members());
-
-drop policy if exists "Admins can read own push subscriptions" on public.admin_push_subscriptions;
-create policy "Admins can read own push subscriptions"
-  on public.admin_push_subscriptions
-  for select
-  to authenticated
-  using (
-    public.can_review_applications()
-    and admin_user_id = auth.uid()
-  );
 
 drop policy if exists "Public can create applications" on public.applications;
 create policy "Public can create applications"
@@ -608,143 +569,18 @@ revoke insert, update, delete on public.feed_likes from authenticated;
 revoke insert, update, delete on public.feed_comments from authenticated;
 revoke insert, update, delete on public.crew_events from authenticated;
 revoke insert, update, delete on public.event_rsvps from authenticated;
-revoke insert, update, delete on public.admin_push_subscriptions from authenticated;
-revoke all on public.admin_push_events from anon, authenticated;
 
 grant insert on public.applications to anon, authenticated;
 grant select on public.applications to authenticated;
 grant select on public.members to authenticated;
 grant select on public.admin_users to authenticated;
 grant select on public.admin_audit_logs to authenticated;
-grant select on public.admin_push_subscriptions to authenticated;
 grant select on public.chat_messages to authenticated;
 grant select on public.feed_posts to authenticated;
 grant select on public.feed_likes to authenticated;
 grant select on public.feed_comments to authenticated;
 grant select on public.crew_events to authenticated;
 grant select on public.event_rsvps to authenticated;
-
-create or replace function public.upsert_admin_push_subscription(
-  subscription_payload jsonb,
-  admin_user_agent text default null
-)
-returns uuid
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  subscription_endpoint text := subscription_payload ->> 'endpoint';
-  subscription_p256dh text := subscription_payload #>> '{keys,p256dh}';
-  subscription_auth text := subscription_payload #>> '{keys,auth}';
-  created_subscription_id uuid;
-begin
-  if not public.can_review_applications() then
-    raise exception 'Admin access required.';
-  end if;
-
-  if coalesce(subscription_endpoint, '') = ''
-    or coalesce(subscription_p256dh, '') = ''
-    or coalesce(subscription_auth, '') = '' then
-    raise exception 'Invalid push subscription.';
-  end if;
-
-  insert into public.admin_push_subscriptions (
-    admin_user_id,
-    endpoint,
-    p256dh,
-    auth,
-    user_agent,
-    status,
-    updated_at,
-    last_seen_at
-  )
-  values (
-    auth.uid(),
-    subscription_endpoint,
-    subscription_p256dh,
-    subscription_auth,
-    nullif(left(trim(coalesce(admin_user_agent, '')), 500), ''),
-    'active',
-    now(),
-    now()
-  )
-  on conflict (endpoint) do update
-  set admin_user_id = excluded.admin_user_id,
-      p256dh = excluded.p256dh,
-      auth = excluded.auth,
-      user_agent = excluded.user_agent,
-      status = 'active',
-      updated_at = now(),
-      last_seen_at = now()
-  returning id into created_subscription_id;
-
-  return created_subscription_id;
-end;
-$$;
-
-grant execute on function public.upsert_admin_push_subscription(jsonb, text)
-  to authenticated;
-revoke all on function public.upsert_admin_push_subscription(jsonb, text)
-  from public, anon;
-
-create or replace function public.delete_admin_push_subscription(
-  subscription_endpoint text
-)
-returns void
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  if not public.can_review_applications() then
-    raise exception 'Admin access required.';
-  end if;
-
-  update public.admin_push_subscriptions
-  set status = 'inactive',
-      updated_at = now()
-  where admin_push_subscriptions.endpoint = subscription_endpoint
-    and admin_push_subscriptions.admin_user_id = auth.uid();
-end;
-$$;
-
-grant execute on function public.delete_admin_push_subscription(text)
-  to authenticated;
-revoke all on function public.delete_admin_push_subscription(text)
-  from public, anon;
-
-create or replace function public.queue_admin_application_push()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  insert into public.admin_push_events (
-    application_id,
-    full_name,
-    car_model
-  )
-  values (
-    new.id,
-    new.full_name,
-    new.car_model
-  );
-
-  return new;
-end;
-$$;
-
-revoke all on function public.queue_admin_application_push()
-  from public, anon, authenticated;
-
-drop trigger if exists applications_admin_push_event_trigger
-  on public.applications;
-
-create trigger applications_admin_push_event_trigger
-  after insert on public.applications
-  for each row execute function public.queue_admin_application_push();
 
 create or replace function public.create_application(
   candidate_full_name text,
