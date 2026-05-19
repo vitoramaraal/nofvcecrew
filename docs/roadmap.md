@@ -17,8 +17,8 @@ can apply publicly, but all community content stays private.
 
 Admin panel roles:
 
-- founder: full access.
-- admin: full operational access.
+- founder: full access, including audit logs.
+- admin: full operational access, except audit logs.
 - moderator: sees applications/members, approves/rejects pending applications,
   creates regular members, and will moderate chat/feed. Cannot delete members or
   change roles.

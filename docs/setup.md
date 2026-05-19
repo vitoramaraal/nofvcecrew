@@ -136,9 +136,9 @@ table writes. Approval/rejection, member deletion, role/status updates, event
 management, check-in changes and content moderation all validate the current
 admin role inside the database.
 
-Founder/admin users can open the `Auditoria` tab in `/admin` to see recent
-records from `admin_audit_logs`. Moderators can perform their allowed review and
-moderation actions, but they cannot see audit logs.
+Only founder users can open the `Auditoria` tab in `/admin` to see recent
+records from `admin_audit_logs`. Admins and moderators can perform their allowed
+operational actions, but they cannot see audit logs.
 
 ## Admin Notifications
 

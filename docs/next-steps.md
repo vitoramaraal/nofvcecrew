@@ -28,7 +28,7 @@ MVP foundation completed:
 - Realtime/fallback sync for private feed
 - Admin moderation for feed posts, feed comments and chat messages
 - Sensitive admin actions through Supabase RPCs with database-side role checks
-- Admin audit logs for approvals, rejection, deletion, role/status changes, events and moderation
+- Founder-only audit logs for approvals, rejection, deletion, role/status changes, events and moderation
 - Event tables with member RSVP and admin check-in
 - Realtime/fallback sync for member events and RSVP status
 - Admin camera/manual scanner for event check-in from member card QR

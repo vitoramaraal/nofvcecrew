@@ -444,11 +444,12 @@ create policy "Admins can read admin users"
   using (public.can_review_applications());
 
 drop policy if exists "Managers can read admin audit logs" on public.admin_audit_logs;
-create policy "Managers can read admin audit logs"
+drop policy if exists "Founders can read admin audit logs" on public.admin_audit_logs;
+create policy "Founders can read admin audit logs"
   on public.admin_audit_logs
   for select
   to authenticated
-  using (public.can_manage_members());
+  using (public.current_admin_role() = 'founder');
 
 drop policy if exists "Public can create applications" on public.applications;
 create policy "Public can create applications"

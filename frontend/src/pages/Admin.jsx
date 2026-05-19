@@ -81,7 +81,7 @@ function Admin() {
   const canReviewApplications = panelRoles.includes(adminRole)
   const canManageMembers = managerRoles.includes(adminRole)
   const canManageEvents = canManageMembers
-  const canViewAuditLogs = canManageMembers
+  const canViewAuditLogs = adminRole === 'founder'
   const moderationCount =
     feedPosts.length + feedComments.length + chatMessages.length
 
@@ -253,7 +253,7 @@ function Admin() {
       setFeedComments(feedCommentsData || [])
       setChatMessages(chatMessagesData || [])
 
-      if (managerRoles.includes(role)) {
+      if (role === 'founder') {
         const { data: auditData, error: auditError } = await client
           .from('admin_audit_logs')
           .select('*')
