@@ -36,12 +36,12 @@ each user access flag.
 2. Copy the project URL and anon key into `frontend/.env`.
 3. Run `docs/supabase-schema.sql` in the Supabase SQL editor.
 4. Confirm the public bucket `application-photos` exists.
-5. Create the first admin in Supabase Auth:
+5. Create the first founder in Supabase Auth:
    - Open `Authentication > Users`.
    - Click `Add user`.
    - Set the admin email and password.
    - Copy the new user UUID.
-6. Register that Auth user as an app admin in the SQL editor:
+6. Register that first Auth user as the app founder in the SQL editor:
 
 ```sql
 insert into public.admin_users (id, email, role)
@@ -59,18 +59,28 @@ Allowed admin panel roles are:
   creates regular members, moderates chat/feed and handles event check-in, but
   cannot delete members, manage events or change roles/status.
 
-7. Login at `/admin` with that Supabase Auth email and password.
-8. To remove old generated test data, run `docs/cleanup-test-data.sql`.
-9. After changing SQL locally, run the full schema again so new tables/functions
+7. Deploy the admin user Edge Function so founders/admins can create future
+   panel users from inside `/admin`:
+
+```bash
+supabase functions deploy admin-upsert-panel-user
+```
+
+8. Login at `/admin` with that Supabase Auth email and password.
+9. Use the `Acessos` tab to create or liberate future panel users. Founder and
+   admin users can create `admin` and `moderator` access. Only a founder can
+   create another `founder`.
+10. To remove old generated test data, run `docs/cleanup-test-data.sql`.
+11. After changing SQL locally, run the full schema again so new tables/functions
    like chat, feed, events, audit logs and QR verification exist.
 
 ## Access Flow
 
 1. Candidate applies at `/apply` without creating an account.
-   The form masks Instagram/WhatsApp and requires confirming that the member
-   card photo has no clear face unless blurred, masked or anonymous. The member
-   photo and vehicle photo are cropped before upload so the candidate can check
-   the card framing.
+   The form masks Instagram/WhatsApp. The member photo and vehicle photo are
+   cropped before upload so the candidate can check the card framing. The
+   member-card photo also receives an adjustable identity blur before it is
+   saved.
 2. Admin opens `/admin`, reviews the application and approves it.
 3. Approval creates a member with role `member` and a unique secret code.
 4. Admin sends the generated code through the WhatsApp link shown in the member card.
@@ -91,7 +101,9 @@ Allowed admin panel roles are:
 If the candidate sees success but the admin panel does not show the application:
 
 1. Run the full `docs/supabase-schema.sql` again in Supabase.
-2. Confirm the admin Auth user exists in `public.admin_users`.
+2. Confirm the admin Auth user exists in `public.admin_users`. After the first
+   founder is configured manually, use the `Acessos` tab in `/admin` for future
+   panel users.
 3. Login again at `/admin` and press `Sync`.
 
 The application form uses `public.create_application` when available. If that
@@ -135,6 +147,11 @@ Sensitive admin actions use Supabase RPC functions instead of direct frontend
 table writes. Approval/rejection, member deletion, role/status updates, event
 management, check-in changes and content moderation all validate the current
 admin role inside the database.
+
+Panel user creation uses the `admin-upsert-panel-user` Edge Function. The
+frontend sends the current admin session token, and the function uses the
+Supabase service role only on the server side after confirming that the caller
+is a `founder` or `admin`.
 
 Only founder users can open the `Auditoria` tab in `/admin` to see recent
 records from `admin_audit_logs`. Admins and moderators can perform their allowed

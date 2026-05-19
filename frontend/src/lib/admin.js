@@ -104,3 +104,29 @@ export function deleteChatMessage(messageId) {
     target_message_id: messageId,
   })
 }
+
+export async function upsertPanelUser({ email, password, role }) {
+  const client = getSupabase()
+  const { data, error } = await client.functions.invoke(
+    'admin-upsert-panel-user',
+    {
+      body: {
+        email,
+        password,
+        role,
+      },
+    },
+  )
+
+  if (error) {
+    const errorBody = await error.context?.json?.().catch(() => null)
+
+    throw new Error(errorBody?.error || error.message)
+  }
+
+  if (data?.error) {
+    throw new Error(data.error)
+  }
+
+  return data
+}

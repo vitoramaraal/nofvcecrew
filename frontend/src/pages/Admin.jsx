@@ -8,6 +8,7 @@ import { getSupabase } from '../lib/supabase'
 const adminRoles = ['founder', 'admin', 'moderator', 'member']
 const panelRoles = ['founder', 'admin', 'moderator']
 const managerRoles = ['founder', 'admin']
+const panelUserRoles = ['founder', 'admin', 'moderator']
 const eventStatuses = ['draft', 'open', 'closed', 'completed', 'cancelled']
 
 function createWhatsAppUrl(member) {
@@ -51,6 +52,7 @@ function Admin() {
   const [feedComments, setFeedComments] = useState([])
   const [chatMessages, setChatMessages] = useState([])
   const [auditLogs, setAuditLogs] = useState([])
+  const [adminUsers, setAdminUsers] = useState([])
   const [adminRole, setAdminRole] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -69,6 +71,11 @@ function Admin() {
     status: 'open',
     capacity: '',
   })
+  const [panelUserForm, setPanelUserForm] = useState({
+    email: '',
+    password: '',
+    role: 'moderator',
+  })
 
   const isUnlocked = Boolean(session)
   const pending = applications.filter((item) => item.status === 'pending').length
@@ -81,7 +88,10 @@ function Admin() {
   const canReviewApplications = panelRoles.includes(adminRole)
   const canManageMembers = managerRoles.includes(adminRole)
   const canManageEvents = canManageMembers
+  const canManagePanelUsers = canManageMembers
   const canViewAuditLogs = adminRole === 'founder'
+  const availablePanelUserRoles =
+    adminRole === 'founder' ? panelUserRoles : ['admin', 'moderator']
   const moderationCount =
     feedPosts.length + feedComments.length + chatMessages.length
 
@@ -122,6 +132,7 @@ function Admin() {
         setFeedComments([])
         setChatMessages([])
         setAuditLogs([])
+        setAdminUsers([])
         setAdminRole('')
         setRealtimeStatus('idle')
         setError(
@@ -252,6 +263,26 @@ function Admin() {
       setFeedPosts(feedPostsData || [])
       setFeedComments(feedCommentsData || [])
       setChatMessages(chatMessagesData || [])
+
+      if (managerRoles.includes(role)) {
+        const { data: adminUsersData, error: adminUsersError } = await client
+          .from('admin_users')
+          .select('*')
+          .order('created_at', { ascending: false })
+
+        if (adminUsersError) {
+          console.error(adminUsersError)
+          setAdminUsers([])
+          setError(
+            'Dados carregados. Acessos admin ainda precisam do schema atualizado.',
+          )
+          return
+        }
+
+        setAdminUsers(adminUsersData || [])
+      } else {
+        setAdminUsers([])
+      }
 
       if (role === 'founder') {
         const { data: auditData, error: auditError } = await client
@@ -435,6 +466,7 @@ function Admin() {
       setFeedComments([])
       setChatMessages([])
       setAuditLogs([])
+      setAdminUsers([])
       setAdminRole('')
       setApplicationAlert(null)
       setRealtimeStatus('idle')
@@ -456,6 +488,78 @@ function Admin() {
 
     if (error) {
       setError('')
+    }
+  }
+
+  function handlePanelUserFormChange(event) {
+    const { name, value } = event.target
+
+    setPanelUserForm((current) => ({
+      ...current,
+      [name]: name === 'email' ? value.trim().toLowerCase() : value,
+    }))
+
+    if (error) {
+      setError('')
+    }
+  }
+
+  async function createPanelUser(event) {
+    event.preventDefault()
+
+    if (!canManagePanelUsers) {
+      setError('Seu cargo nao permite criar usuarios do painel.')
+      return
+    }
+
+    const email = panelUserForm.email.trim().toLowerCase()
+    const password = panelUserForm.password
+    const role = panelUserForm.role
+
+    if (!email || !password) {
+      setError('Informe email e senha inicial.')
+      return
+    }
+
+    if (password.length < 8) {
+      setError('A senha precisa ter pelo menos 8 caracteres.')
+      return
+    }
+
+    if (!availablePanelUserRoles.includes(role)) {
+      setError('Seu cargo nao permite criar esse tipo de usuario.')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const result = await adminActions.upsertPanelUser({
+        email,
+        password,
+        role,
+      })
+
+      setPanelUserForm({
+        email: '',
+        password: '',
+        role: 'moderator',
+      })
+      setSuccess(
+        result?.created_auth_user
+          ? 'Usuario admin criado e liberado.'
+          : 'Usuario existente liberado/atualizado para o painel.',
+      )
+      await loadData()
+    } catch (panelUserError) {
+      console.error(panelUserError)
+      setError(
+        panelUserError?.message || 'Nao foi possivel criar usuario do painel.',
+      )
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -1096,12 +1200,14 @@ function Admin() {
 
         <AdminSectionNav
           active={activeAdminSection}
+          canManageAccess={canManagePanelUsers}
           canViewAudit={canViewAuditLogs}
           counts={{
             applications: pending,
             members: members.length,
             events: events.length,
             moderation: moderationCount,
+            access: adminUsers.length,
             audit: auditLogs.length,
           }}
           onChange={setActiveAdminSection}
@@ -1370,6 +1476,18 @@ function Admin() {
 
         {activeAdminSection === 'audit' && canViewAuditLogs && (
           <AuditPanel auditLogs={auditLogs} loading={loading} />
+        )}
+
+        {activeAdminSection === 'access' && canManagePanelUsers && (
+          <AccessPanel
+            adminRole={adminRole}
+            adminUsers={adminUsers}
+            availableRoles={availablePanelUserRoles}
+            form={panelUserForm}
+            loading={loading}
+            onChange={handlePanelUserFormChange}
+            onSubmit={createPanelUser}
+          />
         )}
 
         {activeAdminSection === 'applications' && (
@@ -1749,7 +1867,121 @@ function ApplicationStatusFilter({ active, counts, onChange }) {
   )
 }
 
-function AdminSectionNav({ active, canViewAudit = false, counts, onChange }) {
+function AccessPanel({
+  adminRole,
+  adminUsers,
+  availableRoles,
+  form,
+  loading,
+  onChange,
+  onSubmit,
+}) {
+  return (
+    <>
+      <h2 className="mt-10 text-2xl font-black uppercase">Acessos</h2>
+
+      <form
+        onSubmit={onSubmit}
+        className="mt-6 grid gap-4 rounded-[2rem] border border-white/5 bg-zinc-900/60 p-5 backdrop-blur-xl md:grid-cols-[1fr_1fr_auto]"
+      >
+        <div className="md:col-span-3">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-white/25">
+            Criar ou liberar usuario do painel
+          </p>
+
+          <p className="mt-2 text-sm leading-6 text-white/45">
+            Se o email ja existir no Supabase Auth, ele sera liberado em
+            admin_users e a senha informada passa a ser a nova senha inicial.
+          </p>
+        </div>
+
+        <input
+          name="email"
+          type="email"
+          value={form.email}
+          onChange={onChange}
+          placeholder="email@admin.com"
+          autoComplete="off"
+          className="rounded-2xl border border-white/5 bg-black/70 px-4 py-4 text-sm text-white outline-none placeholder:text-white/25"
+        />
+
+        <input
+          name="password"
+          type="password"
+          value={form.password}
+          onChange={onChange}
+          placeholder="Senha inicial"
+          autoComplete="new-password"
+          minLength="8"
+          className="rounded-2xl border border-white/5 bg-black/70 px-4 py-4 text-sm text-white outline-none placeholder:text-white/25"
+        />
+
+        <select
+          name="role"
+          value={form.role}
+          onChange={onChange}
+          className="rounded-2xl border border-white/5 bg-black/70 px-4 py-4 text-sm text-white outline-none"
+        >
+          {availableRoles.map((role) => (
+            <option key={role} value={role}>
+              {role}
+            </option>
+          ))}
+        </select>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="rounded-full border border-white/10 bg-white/10 px-5 py-4 text-[10px] font-black uppercase tracking-[0.28em] text-white/45 transition hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-30 md:col-span-3"
+        >
+          {loading ? 'Salvando...' : 'Criar acesso'}
+        </button>
+      </form>
+
+      <div className="mt-6 overflow-hidden rounded-[2rem] border border-white/5 bg-zinc-900/60 backdrop-blur-xl">
+        {adminUsers.length === 0 && !loading && (
+          <div className="p-6 text-sm text-white/40">
+            Nenhum usuario admin encontrado.
+          </div>
+        )}
+
+        {adminUsers.map((adminUser) => (
+          <article
+            key={adminUser.id}
+            className="grid gap-4 border-b border-white/5 p-4 last:border-b-0 md:grid-cols-[1fr_auto] md:items-center"
+          >
+            <div className="min-w-0">
+              <p className="truncate text-sm font-black uppercase text-white">
+                {adminUser.email || 'Email nao informado'}
+              </p>
+
+              <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-white/30">
+                {adminUser.role || '-'} / criado em{' '}
+                {formatAdminEventDate(adminUser.created_at)}
+              </p>
+            </div>
+
+            <StatusBadge
+              status={
+                adminUser.role === 'founder' && adminRole !== 'founder'
+                  ? 'protegido'
+                  : adminUser.role || '-'
+              }
+            />
+          </article>
+        ))}
+      </div>
+    </>
+  )
+}
+
+function AdminSectionNav({
+  active,
+  canManageAccess = false,
+  canViewAudit = false,
+  counts,
+  onChange,
+}) {
   const items = [
     {
       id: 'applications',
@@ -1771,6 +2003,15 @@ function AdminSectionNav({ active, canViewAudit = false, counts, onChange }) {
       label: 'Moderacao',
       count: counts.moderation,
     },
+    ...(canManageAccess
+      ? [
+          {
+            id: 'access',
+            label: 'Acessos',
+            count: counts.access,
+          },
+        ]
+      : []),
     ...(canViewAudit
       ? [
           {
@@ -1785,7 +2026,11 @@ function AdminSectionNav({ active, canViewAudit = false, counts, onChange }) {
   return (
     <nav
       className={`mt-8 grid gap-2 rounded-[2rem] border border-white/5 bg-zinc-900/60 p-2 backdrop-blur-xl ${
-        canViewAudit ? 'md:grid-cols-5' : 'md:grid-cols-4'
+        canManageAccess && canViewAudit
+          ? 'md:grid-cols-6'
+          : canManageAccess || canViewAudit
+            ? 'md:grid-cols-5'
+            : 'md:grid-cols-4'
       }`}
     >
       {items.map((item) => {

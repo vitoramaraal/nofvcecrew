@@ -6,15 +6,17 @@ This document explains the user access flags used by the app.
 
 Table: `public.admin_users`
 
-These users are created in Supabase Auth and then allowed into the app admin
-panel by inserting their Auth UUID into `public.admin_users`.
+The first founder is created in Supabase Auth and allowed into the app admin
+panel by inserting their Auth UUID into `public.admin_users`. After that,
+founder/admin users can create or liberate future panel users from the
+`Acessos` tab in `/admin`.
 
 Field: `role`
 
 | Value | Access |
 | --- | --- |
 | `founder` | Full admin access. Can see all applications, members, phones, access codes, member cards and audit logs. Can approve/reject applications, delete applications, delete members, change member roles/status and manage events. |
-| `admin` | Full operational admin access. Can approve/reject applications, delete applications, delete members, change member roles/status and manage events. Cannot see audit logs. |
+| `admin` | Full operational admin access. Can approve/reject applications, delete applications, delete members, change member roles/status, manage events and create admin/moderator panel users. Cannot see audit logs or create founders. |
 | `moderator` | Can see applications and members, including phones, access codes and member cards. Can approve applications, reject pending applications, create regular members through approval, moderate chat/feed content and handle event check-in. Cannot delete members, delete applications, manage events, see audit logs or change roles/status. |
 
 Important:
@@ -22,6 +24,8 @@ Important:
 - Supabase Auth login alone is not enough to access `/admin`.
 - The Auth user UUID must exist in `public.admin_users`.
 - The admin panel role is separate from the member role.
+- Panel user creation runs through the `admin-upsert-panel-user` Edge Function
+  so the service role key stays server-side.
 
 Example:
 
@@ -138,8 +142,8 @@ Field: `identity_rule_confirmed`
 
 | Value | Meaning |
 | --- | --- |
-| `true` | Candidate confirmed the member card photo does not show a clear face unless blurred, masked or anonymous. Required to submit the application. |
-| `false` | Candidate did not confirm the identity rule. The database policy blocks public application submission with this value. |
+| `true` | The application passed the identity rule. The current frontend applies an adjustable blur to the member-card photo before upload and submits this value as true. |
+| `false` | The identity rule was not satisfied. The database policy blocks public application submission with this value. |
 
 ## Current Permission Matrix
 
@@ -155,6 +159,8 @@ Field: `identity_rule_confirmed`
 | Change member role | Yes | Yes | No | No |
 | Change member status | Yes | Yes | No | No |
 | See admin audit logs | Yes | No | No | No |
+| Create admin/moderator panel users | Yes | Yes | No | No |
+| Create founder panel users | Yes | No | No | No |
 | Moderate chat/feed content | Yes | Yes | Yes | No |
 | Create/update/delete events | Yes | Yes | No | No |
 | See event RSVP, export presence and mark/undo check-in | Yes | Yes | Yes | No |
@@ -169,6 +175,6 @@ Field: `identity_rule_confirmed`
 - `public.members.role` controls crew/member identity.
 - A person can be both an admin user and a member, but those are two separate
   records and two separate access models.
-- Sensitive admin writes now go through Supabase RPCs with database-side role
-  checks and audit logs. Direct admin table writes are intentionally avoided in
-  the frontend.
+- Sensitive admin writes now go through Supabase RPCs or Edge Functions with
+  server-side role checks and audit logs. Direct admin table writes are
+  intentionally avoided in the frontend.
