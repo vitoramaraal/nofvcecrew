@@ -5,6 +5,8 @@ function ImageCropper({
   title = 'Ajustar foto',
   aspectRatio = 1,
   outputWidth = 1200,
+  privacyBlur = false,
+  privacyBlurDescription = 'O blur sera aplicado na foto final enviada.',
   onApply,
   onCancel,
 }) {
@@ -12,6 +14,8 @@ function ImageCropper({
   const [zoom, setZoom] = useState(1)
   const [offsetX, setOffsetX] = useState(0)
   const [offsetY, setOffsetY] = useState(0)
+  const [blurY, setBlurY] = useState(36)
+  const [blurSize, setBlurSize] = useState(54)
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState('')
   const canvasRef = useRef(null)
@@ -69,21 +73,32 @@ function ImageCropper({
     canvas.width = outputWidth
     canvas.height = outputHeight
 
-    context.clearRect(0, 0, outputWidth, outputHeight)
-    context.fillStyle = '#050505'
-    context.fillRect(0, 0, outputWidth, outputHeight)
-    context.drawImage(
+    drawCroppedImage(
+      context,
       image,
       crop.x,
       crop.y,
       crop.width,
       crop.height,
-      0,
-      0,
       outputWidth,
       outputHeight,
+      {
+        enabled: privacyBlur,
+        centerY: blurY,
+        size: blurSize,
+      },
     )
-  }, [aspectRatio, imageReady, offsetX, offsetY, outputWidth, zoom])
+  }, [
+    aspectRatio,
+    blurSize,
+    blurY,
+    imageReady,
+    offsetX,
+    offsetY,
+    outputWidth,
+    privacyBlur,
+    zoom,
+  ])
 
   async function handleApply() {
     const image = imageRef.current
@@ -102,6 +117,11 @@ function ImageCropper({
         offsetX,
         offsetY,
         outputWidth,
+        {
+          enabled: privacyBlur,
+          centerY: blurY,
+          size: blurSize,
+        },
       )
 
       await onApply(croppedFile)
@@ -183,6 +203,46 @@ function ImageCropper({
             onChange={(value) => setOffsetY(Number(value))}
           />
         </div>
+
+        {privacyBlur && (
+          <section className="mt-5 rounded-[1.25rem] border border-white/10 bg-white/[0.03] p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.3em] text-white/30">
+                  Blur ativo
+                </p>
+
+                <p className="mt-2 text-xs leading-5 text-white/45">
+                  {privacyBlurDescription}
+                </p>
+              </div>
+
+              <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200/70">
+                Auto
+              </span>
+            </div>
+
+            <div className="mt-4 space-y-4">
+              <CropSlider
+                label="Altura do blur"
+                min="15"
+                max="75"
+                step="1"
+                value={blurY}
+                onChange={(value) => setBlurY(Number(value))}
+              />
+
+              <CropSlider
+                label="Tamanho do blur"
+                min="30"
+                max="78"
+                step="1"
+                value={blurSize}
+                onChange={(value) => setBlurSize(Number(value))}
+              />
+            </div>
+          </section>
+        )}
 
         {error && (
           <p className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
@@ -272,6 +332,7 @@ function createCroppedFile(
   offsetX,
   offsetY,
   outputWidth,
+  privacyBlur,
 ) {
   const outputHeight = Math.round(outputWidth / aspectRatio)
   const crop = calculateCrop(image, aspectRatio, zoom, offsetX, offsetY)
@@ -281,18 +342,16 @@ function createCroppedFile(
   canvas.width = outputWidth
   canvas.height = outputHeight
 
-  context.fillStyle = '#050505'
-  context.fillRect(0, 0, outputWidth, outputHeight)
-  context.drawImage(
+  drawCroppedImage(
+    context,
     image,
     crop.x,
     crop.y,
     crop.width,
     crop.height,
-    0,
-    0,
     outputWidth,
     outputHeight,
+    privacyBlur,
   )
 
   return new Promise((resolve, reject) => {
@@ -316,6 +375,90 @@ function createCroppedFile(
       0.9,
     )
   })
+}
+
+function drawCroppedImage(
+  context,
+  image,
+  sourceX,
+  sourceY,
+  sourceWidth,
+  sourceHeight,
+  outputWidth,
+  outputHeight,
+  privacyBlur,
+) {
+  context.fillStyle = '#050505'
+  context.fillRect(0, 0, outputWidth, outputHeight)
+  context.drawImage(
+    image,
+    sourceX,
+    sourceY,
+    sourceWidth,
+    sourceHeight,
+    0,
+    0,
+    outputWidth,
+    outputHeight,
+  )
+
+  if (!privacyBlur?.enabled) return
+
+  applyPrivacyBlur(
+    context,
+    image,
+    sourceX,
+    sourceY,
+    sourceWidth,
+    sourceHeight,
+    outputWidth,
+    outputHeight,
+    privacyBlur,
+  )
+}
+
+function applyPrivacyBlur(
+  context,
+  image,
+  sourceX,
+  sourceY,
+  sourceWidth,
+  sourceHeight,
+  outputWidth,
+  outputHeight,
+  privacyBlur,
+) {
+  const centerY = outputHeight * (clamp(Number(privacyBlur.centerY), 15, 75) / 100)
+  const size = clamp(Number(privacyBlur.size), 30, 78)
+  const maskWidth = outputWidth * (size / 100)
+  const maskHeight = outputHeight * ((size * 0.54) / 100)
+  const blurAmount = Math.max(18, Math.round(outputWidth * 0.032))
+
+  context.save()
+  context.beginPath()
+  context.ellipse(
+    outputWidth / 2,
+    centerY,
+    maskWidth / 2,
+    maskHeight / 2,
+    0,
+    0,
+    Math.PI * 2,
+  )
+  context.clip()
+  context.filter = `blur(${blurAmount}px)`
+  context.drawImage(
+    image,
+    sourceX,
+    sourceY,
+    sourceWidth,
+    sourceHeight,
+    0,
+    0,
+    outputWidth,
+    outputHeight,
+  )
+  context.restore()
 }
 
 function createSafeBaseName(fileName) {

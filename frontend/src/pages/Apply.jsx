@@ -15,7 +15,6 @@ function Apply() {
   const [loading, setLoading] = useState(false)
   const [carFile, setCarFile] = useState(null)
   const [memberFile, setMemberFile] = useState(null)
-  const [identityRuleAccepted, setIdentityRuleAccepted] = useState(false)
 
   const [formData, setFormData] = useState({
     full_name: '',
@@ -223,7 +222,9 @@ function Apply() {
     emailFormData.append('Foto do carro', data.image_url || '-')
     emailFormData.append(
       'Regra de identidade',
-      data.identity_rule_confirmed ? 'Confirmada' : 'Nao confirmada',
+      data.identity_rule_confirmed
+        ? 'Blur aplicado automaticamente'
+        : 'Nao confirmada',
     )
 
     try {
@@ -269,14 +270,6 @@ function Apply() {
         return
       }
 
-      if (!identityRuleAccepted) {
-        setError(
-          'Confirme que a foto da carteirinha nao mostra rosto nitido sem blur ou mascara.',
-        )
-        setLoading(false)
-        return
-      }
-
       const memberImageError = validateImage(memberFile)
       const carImageError = validateImage(carFile)
 
@@ -312,7 +305,6 @@ function Apply() {
         car_model: '',
         message: '',
       })
-      setIdentityRuleAccepted(false)
       setCarPreview(null)
       setMemberPreview(null)
       setCarFile(null)
@@ -357,8 +349,9 @@ function Apply() {
         </h1>
 
         <p className="mt-5 text-sm leading-6 text-white/45">
-          Envie seus dados, uma foto sua para a carteirinha e uma foto do carro
-          para analise da NoFvce Crew.
+          Envie seus dados, uma foto sua para a carteirinha e uma foto do
+          carro para analise da NoFvce Crew. O blur de identidade e aplicado na
+          foto da carteirinha antes do envio.
         </p>
 
         {success && (
@@ -435,7 +428,7 @@ function Apply() {
 
           <ImageInput
             title="Foto para carteirinha"
-            description="Escolha a foto e ajuste o corte da carteirinha"
+            description="Escolha a foto; o app aplica o blur de identidade"
             name="member_photo"
             onChange={handleMemberImageChange}
           />
@@ -448,13 +441,7 @@ function Apply() {
             />
           )}
 
-          <IdentityRuleCheck
-            checked={identityRuleAccepted}
-            onChange={(checked) => {
-              setIdentityRuleAccepted(checked)
-              setError('')
-            }}
-          />
+          <IdentityRuleNotice />
 
           <ImageInput
             title="Foto do carro"
@@ -501,6 +488,8 @@ function Apply() {
               : vehicleCardPhotoAspect
           }
           outputWidth={cropTarget.type === 'member' ? 990 : 1260}
+          privacyBlur={cropTarget.type === 'member'}
+          privacyBlurDescription="Posicione o blur sobre o rosto ou area de identidade. Ele fica gravado na foto enviada."
           onApply={handleCropApply}
           onCancel={handleCropCancel}
         />
@@ -531,39 +520,19 @@ function ImageInput({ title, description, name, onChange }) {
   )
 }
 
-function IdentityRuleCheck({ checked, onChange }) {
+function IdentityRuleNotice() {
   return (
-    <label
-      className={
-        checked
-          ? 'flex cursor-pointer gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4'
-          : 'flex cursor-pointer gap-3 rounded-2xl border border-white/5 bg-black/50 p-4'
-      }
-    >
-      <input
-        type="checkbox"
-        name="identity_rule_confirmed"
-        required
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        className="sr-only"
-      />
-
-      <span
-        className={
-          checked
-            ? 'mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-emerald-300 bg-emerald-300 text-[12px] font-black text-black'
-            : 'mt-1 h-6 w-6 shrink-0 rounded-md border border-white/20 bg-black'
-        }
-      >
-        {checked ? 'OK' : ''}
+    <div className="flex gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+      <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-emerald-300 bg-emerald-300 text-[12px] font-black text-black">
+        OK
       </span>
 
       <span className="text-sm leading-6 text-white/50">
-        Confirmo que a foto da carteirinha nao mostra meu rosto nitido sem
-        estar borrado, coberto por mascara ou anonimo.
+        A plataforma aplica um blur de identidade na foto da carteirinha antes
+        de salvar a candidatura. Ajuste a altura e o tamanho do blur no preview
+        para cobrir o rosto ou qualquer area sensivel.
       </span>
-    </label>
+    </div>
   )
 }
 
