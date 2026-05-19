@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NoFvce Crew Feature Deck</title>
+    <style>
+      :root {
+        --bg: #080808;
+        --card: #101010;
+        --line: rgba(255, 255, 255, 0.12);
+        --muted: rgba(255, 255, 255, 0.48);
+        --text: #f4f4f4;
+        --red: #e11932;
+        --silver: #c9c9c9;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background:
+          radial-gradient(circle at 20% 0%, rgba(225, 25, 50, 0.18), transparent 28rem),
+          linear-gradient(135deg, #050505, #141414);
+        color: var(--text);
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+
+      .page {
+        margin: 0 auto;
+        max-width: 1180px;
+        padding: 32px 18px 80px;
+      }
+
+      .intro {
+        border-bottom: 1px solid var(--line);
+        margin-bottom: 24px;
+        padding-bottom: 24px;
+      }
+
+      .eyebrow,
+      .slide-index {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+      }
+
+      .intro h1 {
+        font-size: clamp(36px, 8vw, 84px);
+        line-height: 0.88;
+        margin: 14px 0 14px;
+        max-width: 900px;
+        text-transform: uppercase;
+      }
+
+      .intro p {
+        color: var(--muted);
+        font-size: 16px;
+        line-height: 1.7;
+        max-width: 720px;
+      }
+
+      .deck {
+        display: grid;
+        gap: 28px;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      }
+
+      .slide {
+        aspect-ratio: 4 / 5;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 32%),
+          linear-gradient(145deg, #121212, #030303);
+        border: 1px solid var(--line);
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.42);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        min-height: 0;
+        overflow: hidden;
+        padding: clamp(24px, 4vw, 44px);
+        position: relative;
+      }
+
+      .slide::before {
+        background: var(--red);
+        content: "";
+        height: 3px;
+        left: 0;
+        position: absolute;
+        right: 0;
+        top: 0;
+      }
+
+      .brand-row {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+      }
+
+      .logo {
+        height: 34px;
+        object-fit: contain;
+        width: auto;
+      }
+
+      .slide-title {
+        font-size: clamp(36px, 6vw, 74px);
+        letter-spacing: 0;
+        line-height: 0.9;
+        margin: 36px 0 22px;
+        text-transform: uppercase;
+      }
+
+      .slide-copy {
+        color: rgba(255, 255, 255, 0.72);
+        font-size: clamp(17px, 2.4vw, 25px);
+        font-weight: 650;
+        line-height: 1.24;
+        max-width: 86%;
+      }
+
+      .list {
+        display: grid;
+        gap: 12px;
+        margin: 24px 0 0;
+        padding: 0;
+      }
+
+      .list li {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.72);
+        font-size: clamp(15px, 2vw, 20px);
+        font-weight: 700;
+        list-style: none;
+        padding-bottom: 12px;
+      }
+
+      .footer-line {
+        align-items: center;
+        color: var(--muted);
+        display: flex;
+        font-size: 11px;
+        font-weight: 800;
+        justify-content: space-between;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      .metric {
+        color: var(--silver);
+        font-size: clamp(48px, 9vw, 108px);
+        font-weight: 950;
+        line-height: 0.85;
+        margin: 28px 0 12px;
+        text-transform: uppercase;
+      }
+
+      .red {
+        color: var(--red);
+      }
+
+      .print-note {
+        color: rgba(255, 255, 255, 0.45);
+        font-size: 13px;
+        line-height: 1.6;
+        margin-top: 28px;
+      }
+
+      @media print {
+        body {
+          background: #000;
+        }
+
+        .page {
+          max-width: none;
+          padding: 0;
+        }
+
+        .intro,
+        .print-note {
+          display: none;
+        }
+
+        .deck {
+          display: block;
+        }
+
+        .slide {
+          box-shadow: none;
+          height: 100vh;
+          margin: 0;
+          page-break-after: always;
+          width: 80vh;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="intro">
+        <p class="eyebrow">NoFvce Crew / Feature Deck</p>
+        <h1>Apresentacao do MVP</h1>
+        <p>
+          Abra este arquivo no navegador e capture cada slide para usar como
+          carrossel. O formato visual foi pensado em 4:5, bom para LinkedIn e
+          Instagram feed.
+        </p>
+      </section>
+
+      <section class="deck" aria-label="Slides da apresentacao">
+        <article class="slide">
+          <div>
+            <div class="brand-row">
+              <img class="logo" src="../frontend/public/nofvce/logo-white.png" alt="NoFvce" />
+              <span class="slide-index">01 / 10</span>
+            </div>
+            <h2 class="slide-title">NoFvce Crew Platform</h2>
+            <p class="slide-copy">
+              Um sistema proprio para gerenciar uma comunidade automotiva com
+              identidade, processo e presenca digital.
+            </p>
+          </div>
+          <div class="footer-line">
+            <span>MVP Showcase</span>
+            <span>React + Supabase</span>
+          </div>
+        </article>
+
+        <article class="slide">
+          <div>
+            <div class="brand-row">
+              <img class="logo" src="../frontend/public/nofvce/logo-white.png" alt="NoFvce" />
+              <span class="slide-index">02 / 10</span>
+            </div>
+            <h2 class="slide-title">O problema</h2>
+            <p class="slide-copy">
+              Candidaturas, membros, eventos e comunicacao interna ficam
+              espalhados quando tudo depende de mensagens, grupos e planilhas.
+            </p>
+          </div>
+          <div class="footer-line">
+            <span>Antes</span>
+            <span>Processo manual</span>
+          </div>
+        </article>
+
+        <article class="slide">
+          <div>
+            <div class="brand-row">
+              <img class="logo" src="../frontend/public/nofvce/logo-white.png" alt="NoFvce" />
+              <span class="slide-index">03 / 10</span>
+            </div>
+            <h2 class="slide-title">A solucao</h2>
+            <p class="slide-copy">
+              Uma plataforma web com candidatura publica, painel administrativo
+              e area privada para membros aprovados.
+            </p>
+          </div>
+          <div class="footer-line">
+            <span>Depois</span>
+            <span>Fluxo proprio</span>
+          </div>
+        </article>
+
+        <article class="slide">
+          <div>
+            <div class="brand-row">
+              <img class="logo" src="../frontend/public/nofvce/logo-white.png" alt="NoFvce" />
+              <span class="slide-index">04 / 10</span>
+            </div>
+            <h2 class="slide-title">Candidatura</h2>
+            <ul class="list">
+              <li>Formulario publico</li>
+              <li>Dados de contato e Instagram</li>
+              <li>Modelo do carro e mensagem</li>
+              <li>Fotos obrigatorias</li>
+              <li>Confirmacao da regra de identidade</li>
+            </ul>
+          </div>
+          <div class="footer-line">
+            <span>Entrada</span>
+            <span>Sem conta inicial</span>
+          </div>
+        </article>
+
+        <article class="slide">
+          <div>
+            <div class="brand-row">
+              <img class="logo" src="../frontend/public/nofvce/logo-white.png" alt="NoFvce" />
+              <span class="slide-index">05 / 10</span>
+            </div>
+            <h2 class="slide-title">Painel admin</h2>
+            <ul class="list">
+              <li>Aprovar ou rejeitar candidaturas</li>
+              <li>Criar membro automaticamente</li>
+              <li>Gerenciar cargos e status</li>
+              <li>Moderar feed, comentarios e chat</li>
+              <li>Auditoria restrita ao founder</li>
+            </ul>
+          </div>
+          <div class="footer-line">
+            <span>Operacao</span>
+            <span>Founder / Admin / Moderator</span>
+          </div>
+        </article>
+
+        <article class="slide">
+          <div>
+            <div class="brand-row">
+              <img class="logo" src="../frontend/public/nofvce/logo-white.png" alt="NoFvce" />
+              <span class="slide-index">06 / 10</span>
+            </div>
+            <h2 class="slide-title">Carteirinha digital</h2>
+            <p class="slide-copy">
+              Cada membro aprovado recebe uma identidade visual com numero,
+              cargo, foto, carro e QR Code de verificacao.
+            </p>
+          </div>
+          <div class="footer-line">
+            <span>Identidade</span>
+            <span>QR verificavel</span>
+          </div>
+        </article>
+
+        <article class="slide">
+          <div>
+            <div class="brand-row">
+              <img class="logo" src="../frontend/public/nofvce/logo-white.png" alt="NoFvce" />
+              <span class="slide-index">07 / 10</span>
+            </div>
+            <h2 class="slide-title">Area de membros</h2>
+            <ul class="list">
+              <li>Login por codigo individual</li>
+              <li>Perfil editavel</li>
+              <li>Garagem e galeria</li>
+              <li>Feed privado</li>
+              <li>Chat, eventos e drops preview</li>
+            </ul>
+          </div>
+          <div class="footer-line">
+            <span>Privado</span>
+            <span>Member app</span>
+          </div>
+        </article>
+
+        <article class="slide">
+          <div>
+            <div class="brand-row">
+              <img class="logo" src="../frontend/public/nofvce/logo-white.png" alt="NoFvce" />
+              <span class="slide-index">08 / 10</span>
+            </div>
+            <h2 class="slide-title">Eventos</h2>
+            <ul class="list">
+              <li>Eventos privados</li>
+              <li>RSVP de membros</li>
+              <li>Scanner de QR Code</li>
+              <li>Check-in no painel admin</li>
+              <li>Exportacao CSV de presenca</li>
+            </ul>
+          </div>
+          <div class="footer-line">
+            <span>Meetups</span>
+            <span>Presenca controlada</span>
+          </div>
+        </article>
+
+        <article class="slide">
+          <div>
+            <div class="brand-row">
+              <img class="logo" src="../frontend/public/nofvce/logo-white.png" alt="NoFvce" />
+              <span class="slide-index">09 / 10</span>
+            </div>
+            <h2 class="slide-title">Base tecnica</h2>
+            <ul class="list">
+              <li>React e Vite</li>
+              <li>Supabase Auth</li>
+              <li>Row Level Security</li>
+              <li>RPCs para acoes sensiveis</li>
+              <li>Storage e Edge Functions</li>
+            </ul>
+          </div>
+          <div class="footer-line">
+            <span>Stack</span>
+            <span>Produto real</span>
+          </div>
+        </article>
+
+        <article class="slide">
+          <div>
+            <div class="brand-row">
+              <img class="logo" src="../frontend/public/nofvce/logo-white.png" alt="NoFvce" />
+              <span class="slide-index">10 / 10</span>
+            </div>
+            <p class="eyebrow">Resultado</p>
+            <div class="metric">MVP<span class="red">.</span></div>
+            <p class="slide-copy">
+              Uma comunidade automotiva com sistema, identidade e base para
+              evoluir como marca digital.
+            </p>
+          </div>
+          <div class="footer-line">
+            <span>NoFvce Crew</span>
+            <span>Built in-house</span>
+          </div>
+        </article>
+      </section>
+
+      <p class="print-note">
+        Dica: use zoom do navegador em 100%, abra cada slide em tela cheia ou
+        tire prints do deck. Para Instagram/Reels, use o roteiro em
+        docs/nofvce-launch-content-kit.md.
+      </p>
+    </main>
+  </body>
+</html>
