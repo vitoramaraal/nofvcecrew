@@ -37,6 +37,14 @@ function normalizePhone(phone = '') {
   return `55${digits}`
 }
 
+function formatMemberAccessCode(member) {
+  if (member.access_code) {
+    return member.access_code
+  }
+
+  return member.access_code_visible === false ? 'Restrito ao founder' : '-'
+}
+
 function Admin() {
   const [credentials, setCredentials] = useState({
     email: '',
@@ -151,10 +159,7 @@ function Admin() {
           .from('applications')
           .select('*')
           .order('created_at', { ascending: false }),
-        client
-          .from('members')
-          .select('*')
-          .order('created_at', { ascending: false }),
+        client.rpc('admin_list_members'),
       ])
 
       if (applicationsError) {
@@ -1640,6 +1645,7 @@ function Admin() {
 
               {members.map((member) => {
                 const isExpanded = expandedMemberId === member.id
+                const memberAccessCode = formatMemberAccessCode(member)
                 const whatsAppUrl = createWhatsAppUrl(member)
 
                 return (
@@ -1674,7 +1680,7 @@ function Admin() {
                           {member.role || 'member'} / {member.status || '-'}
                         </p>
                         <p className="mt-1 truncate font-mono text-white/60">
-                          {member.access_code || '-'}
+                          {memberAccessCode}
                         </p>
                       </div>
 
@@ -1755,7 +1761,7 @@ function Admin() {
                           />
                           <InfoBlock
                             label="Codigo secreto"
-                            value={member.access_code || '-'}
+                            value={memberAccessCode}
                           />
                           <InfoBlock
                             label="WhatsApp"

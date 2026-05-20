@@ -15,9 +15,9 @@ Field: `role`
 
 | Value | Access |
 | --- | --- |
-| `founder` | Full admin access. Can see all applications, members, phones, access codes, member cards and audit logs. Can approve/reject applications, delete applications, delete members, change member roles/status and manage events. |
-| `admin` | Full operational admin access. Can approve/reject applications, delete applications, delete members, change member roles/status, manage events and create admin/moderator panel users. Cannot see audit logs or create founders. |
-| `moderator` | Can see applications and members, including phones, access codes and member cards. Can approve applications, reject pending applications, create regular members through approval, moderate chat/feed content and handle event check-in. Cannot delete members, delete applications, manage events, see audit logs or change roles/status. |
+| `founder` | Full admin access. Can see all applications, members, phones, all member access codes, member cards and audit logs. Can approve/reject applications, delete applications, delete members, change member roles/status and manage events. |
+| `admin` | Full operational admin access. Can approve/reject applications, delete applications, delete members, change member roles/status, manage events and create admin/moderator panel users. Can see access codes only for regular `member` records. Cannot see audit logs or create founders. |
+| `moderator` | Can see applications and members, including phones and member cards. Can see access codes only for regular `member` records. Can approve applications, reject pending applications, create regular members through approval, moderate chat/feed content and handle event check-in. Cannot delete members, delete applications, manage events, see audit logs or change roles/status. |
 
 Important:
 
@@ -151,7 +151,9 @@ Field: `identity_rule_confirmed`
 | --- | --- | --- | --- | --- |
 | Access `/admin` | Yes | Yes | Yes | No |
 | See applications | Yes | Yes | Yes | No |
-| See members, phones, codes and cards | Yes | Yes | Yes | No |
+| See members, phones and cards | Yes | Yes | Yes | No |
+| See all member access codes | Yes | No | No | No |
+| See regular `member` access codes | Yes | Yes | Yes | No |
 | Approve pending application | Yes | Yes | Yes | No |
 | Reject pending application | Yes | Yes | Yes | No |
 | Delete application | Yes | Yes | No | No |

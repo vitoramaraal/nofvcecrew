@@ -59,6 +59,10 @@ Allowed admin panel roles are:
   creates regular members, moderates chat/feed and handles event check-in, but
   cannot delete members, manage events or change roles/status.
 
+Only founders can see every member `access_code` in `/admin`. Admins and
+moderators can see/send codes only for regular `member` records; access codes
+for founder/admin/moderator member records are hidden from them.
+
 7. Deploy the admin user Edge Function so founders/admins can create future
    panel users from inside `/admin`:
 

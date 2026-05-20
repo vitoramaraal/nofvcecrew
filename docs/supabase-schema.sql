@@ -573,7 +573,28 @@ revoke insert, update, delete on public.event_rsvps from authenticated;
 
 grant insert on public.applications to anon, authenticated;
 grant select on public.applications to authenticated;
-grant select on public.members to authenticated;
+revoke select on public.members from authenticated;
+grant select (
+  id,
+  application_id,
+  full_name,
+  instagram,
+  whatsapp,
+  car_model,
+  car_setup,
+  bio,
+  car_specs,
+  car_mods,
+  gallery_urls,
+  image_url,
+  member_photo_url,
+  member_photo_path,
+  role,
+  status,
+  member_number,
+  profile_updated_at,
+  created_at
+) on public.members to authenticated;
 grant select on public.admin_users to authenticated;
 grant select on public.admin_audit_logs to authenticated;
 grant select on public.chat_messages to authenticated;
@@ -1479,6 +1500,81 @@ end;
 $$;
 
 grant execute on function public.admin_delete_chat_message(uuid)
+  to authenticated;
+
+drop function if exists public.admin_list_members();
+
+create or replace function public.admin_list_members()
+returns table (
+  id uuid,
+  application_id uuid,
+  full_name text,
+  instagram text,
+  whatsapp text,
+  car_model text,
+  car_setup text,
+  bio text,
+  car_specs text,
+  car_mods text,
+  gallery_urls jsonb,
+  image_url text,
+  member_photo_url text,
+  member_photo_path text,
+  role text,
+  access_code text,
+  access_code_visible boolean,
+  status text,
+  member_number text,
+  profile_updated_at timestamptz,
+  created_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  requester_role text := public.current_admin_role();
+begin
+  if requester_role not in ('founder', 'admin', 'moderator') then
+    raise exception 'Admin access required.';
+  end if;
+
+  return query
+  select
+    members.id,
+    members.application_id,
+    members.full_name,
+    members.instagram,
+    members.whatsapp,
+    members.car_model,
+    members.car_setup,
+    members.bio,
+    members.car_specs,
+    members.car_mods,
+    members.gallery_urls,
+    members.image_url,
+    members.member_photo_url,
+    members.member_photo_path,
+    members.role,
+    case
+      when requester_role = 'founder'
+        or members.role = 'member' then members.access_code
+      else null
+    end as access_code,
+    (
+      requester_role = 'founder'
+      or members.role = 'member'
+    ) as access_code_visible,
+    members.status,
+    members.member_number,
+    members.profile_updated_at,
+    members.created_at
+  from public.members
+  order by members.created_at desc;
+end;
+$$;
+
+grant execute on function public.admin_list_members()
   to authenticated;
 
 drop function if exists public.authenticate_member(text);
